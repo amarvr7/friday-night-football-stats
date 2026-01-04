@@ -27,8 +27,6 @@ import {
   Activity,
   Zap,
   TrendingUp,
-  History,
-  Save,
   FileUp,
   AlertCircle,
   CheckCircle2,
@@ -37,7 +35,6 @@ import {
   Upload,
   RefreshCw,
   Lock,
-  ArrowRight,
   Shield,
   Clock,
   UserCheck,
@@ -70,7 +67,6 @@ const firebaseConfig = {
 let app;
 let auth;
 let db;
-let initError = null;
 
 try {
   // Check if an app is already initialized
@@ -86,7 +82,6 @@ try {
   console.log("Firebase Initialized Successfully");
 } catch (err) {
   console.error("Firebase Init Error:", err);
-  initError = err.message;
 }
 
 const PROJECT_ID = "fridaynightfootball-ba9c1";
@@ -466,8 +461,6 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
 const MatchLogger = ({ players, onSave, onCancel }) => {
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [matchData, setMatchData] = useState({});
-  const [teamBluePlayers, setTeamBluePlayers] = useState([]);
-  const [teamWhitePlayers, setTeamWhitePlayers] = useState([]);
   const [blueScore, setBlueScore] = useState(0);
   const [whiteScore, setWhiteScore] = useState(0);
 
