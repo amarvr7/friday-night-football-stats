@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged 
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  onSnapshot, 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
   serverTimestamp,
   query,
   writeBatch,
@@ -20,11 +20,11 @@ import {
   deleteDoc,
   orderBy
 } from 'firebase/firestore';
-import { 
-  Trophy, 
-  Plus, 
-  Users, 
-  Activity, 
+import {
+  Trophy,
+  Plus,
+  Users,
+  Activity,
   Zap,
   TrendingUp,
   History,
@@ -79,7 +79,7 @@ try {
   } else {
     app = getApp(); // Use existing default app
   }
-  
+
   // Initialize services
   auth = getAuth(app);
   db = getFirestore(app);
@@ -90,34 +90,34 @@ try {
 }
 
 const PROJECT_ID = "fridaynightfootball-ba9c1";
-const COLLECTIONS = { 
-  PLAYERS: 'players', 
+const COLLECTIONS = {
+  PLAYERS: 'players',
   MATCHES: 'matches',
-  SETTINGS: 'settings', 
-  CHECKINS: 'checkins'  
+  SETTINGS: 'settings',
+  CHECKINS: 'checkins'
 };
 
-const ACCESS_CODE_PLAYER = "FRIDAY"; 
-const ACCESS_CODE_ADMIN = "ADMIN123"; 
+const ACCESS_CODE_PLAYER = "FRIDAY";
+const ACCESS_CODE_ADMIN = "ADMIN123";
 
 // --- 2. Utilities ---
 
 const mapRating = (val) => {
-  if (!val) return 60; 
+  if (!val) return 60;
   const base = 35 + (val * 12);
-  return Math.min(Math.round(base + (val > 4.5 ? 4 : 0)), 99); 
+  return Math.min(Math.round(base + (val > 4.5 ? 4 : 0)), 99);
 };
 
 // Calculate stats dynamically from a list of matches
 const calculateStatsFromMatches = (player, matches) => {
-  let stats = { 
-    goals: 0, 
-    wins: 0, 
-    gamesPlayed: 0, 
-    assists: 0, 
-    cleanSheets: 0, 
-    goalsFor: 0, 
-    goalsAgainst: 0 
+  let stats = {
+    goals: 0,
+    wins: 0,
+    gamesPlayed: 0,
+    assists: 0,
+    cleanSheets: 0,
+    goalsFor: 0,
+    goalsAgainst: 0
   };
 
   matches.forEach(m => {
@@ -146,7 +146,7 @@ const calculateOverall = (player, statsOverride = null) => {
   const goals = statsOverride ? statsOverride.goals : player.goals;
   const wins = statsOverride ? statsOverride.wins : player.wins;
   const gamesPlayed = statsOverride ? statsOverride.gamesPlayed : player.gamesPlayed;
-  
+
   const assists = statsOverride ? (statsOverride.assists || 0) : 0;
   const cleanSheets = statsOverride ? (statsOverride.cleanSheets || 0) : 0;
 
@@ -156,7 +156,7 @@ const calculateOverall = (player, statsOverride = null) => {
   const assistsPerGame = assists / gamesPlayed;
   const csPerGame = cleanSheets / gamesPlayed;
   const winRate = wins / gamesPlayed;
-  
+
   let rating = 60 + (goalsPerGame * 15) + (assistsPerGame * 10) + (csPerGame * 10) + (winRate * 20);
   return Math.min(Math.round(rating), 99);
 };
@@ -266,22 +266,22 @@ const LoginScreen = ({ onLogin }) => {
 };
 
 const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seasonStats }) => {
-  const statsToUse = seasonStats || player; 
-  const overall = calculateOverall(player, seasonStats); 
+  const statsToUse = seasonStats || player;
+  const overall = calculateOverall(player, seasonStats);
   const { ratings } = player;
 
   const pace = ratings ? mapRating(ratings.fitness) : (80 + Math.min(statsToUse.gamesPlayed || 0, 19));
   const dri = ratings ? mapRating(ratings.control) : (Math.min(99, 70 + (statsToUse.wins || 0)));
   const sho = ratings ? mapRating(ratings.shooting) : (Math.min(99, 60 + (statsToUse.goals || 0) * 2));
   const def = ratings ? mapRating(ratings.defense) : (Math.min(99, 50 + (statsToUse.gamesPlayed || 0)));
-  const pas = ratings ? mapRating(ratings.control) : 65; 
+  const pas = ratings ? mapRating(ratings.control) : 65;
   const phy = ratings ? mapRating(ratings.defense) : (Math.min(99, 75 + (statsToUse.wins || 0)));
 
   const getCardStyle = () => {
-    if (rank === 1) return "bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 border-yellow-300 text-slate-900"; 
-    if (rank === 2) return "bg-gradient-to-b from-slate-200 via-slate-300 to-slate-400 border-slate-300 text-slate-900"; 
-    if (rank === 3) return "bg-gradient-to-b from-orange-200 via-orange-300 to-orange-400 border-orange-300 text-slate-900"; 
-    return "bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 border-slate-600 text-white"; 
+    if (rank === 1) return "bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 border-yellow-300 text-slate-900";
+    if (rank === 2) return "bg-gradient-to-b from-slate-200 via-slate-300 to-slate-400 border-slate-300 text-slate-900";
+    if (rank === 3) return "bg-gradient-to-b from-orange-200 via-orange-300 to-orange-400 border-orange-300 text-slate-900";
+    return "bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 border-slate-600 text-white";
   };
   const textColor = rank <= 3 ? "text-slate-900" : "text-white";
   const labelColor = rank <= 3 ? "text-slate-800" : "text-slate-400";
@@ -292,12 +292,12 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
         <div className="flex justify-between items-start mb-2 relative z-20">
           <div className="flex flex-col items-center"><span className={`text-3xl font-bold leading-none ${textColor}`}>{overall}</span><span className={`text-xs font-bold uppercase ${labelColor}`}>CAM</span></div>
           <div className="opacity-90">
-             {canEdit && <button onClick={(e) => { e.stopPropagation(); onEditRatings(); }} className="bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition-colors"><Sliders size={16} /></button>}
+            {canEdit && <button onClick={(e) => { e.stopPropagation(); onEditRatings(); }} className="bg-black/30 hover:bg-black/50 text-white p-2 rounded-full backdrop-blur-sm transition-colors"><Sliders size={16} /></button>}
           </div>
         </div>
         <div className="flex-grow flex items-end justify-center -mb-4 relative z-10 group">
-           {player.photoUrl ? <img src={player.photoUrl} alt={player.name} className="h-32 w-32 object-cover object-top mask-image-gradient" style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }} /> : <Users size={80} className={`${rank <= 3 ? "text-slate-900" : "text-slate-400"} opacity-90`} />}
-           {onUploadClick && <button onClick={(e) => { e.stopPropagation(); onUploadClick(); }} className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"><Camera className="text-white drop-shadow-lg" size={32} /></button>}
+          {player.photoUrl ? <img src={player.photoUrl} alt={player.name} className="h-32 w-32 object-cover object-top mask-image-gradient" style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }} /> : <Users size={80} className={`${rank <= 3 ? "text-slate-900" : "text-slate-400"} opacity-90`} />}
+          {onUploadClick && <button onClick={(e) => { e.stopPropagation(); onUploadClick(); }} className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"><Camera className="text-white drop-shadow-lg" size={32} /></button>}
         </div>
         <div className="relative z-20 text-center mb-3"><h3 className={`font-black uppercase tracking-wider text-lg truncate ${textColor} border-b-2 ${rank <= 3 ? "border-slate-900/10" : "border-yellow-500/20"} pb-1`}>{player.name}</h3></div>
         <div className={`grid grid-cols-2 gap-x-2 gap-y-1 text-sm font-bold ${textColor}`}>
@@ -321,7 +321,7 @@ const LeaderboardRow = ({ player, rank, overall, stats }) => (
     </div>
     <div className="flex items-center gap-6">
       <div className="text-center hidden sm:block"><div className="text-xs text-slate-500 uppercase font-bold">Goals</div><div className="text-white font-mono text-lg">{stats ? stats.goals : (player.goals || 0)}</div></div>
-       <div className="text-center bg-slate-900 p-2 rounded-lg border border-slate-700 min-w-[60px]"><div className="text-[10px] text-slate-500 uppercase font-bold">OVR</div><div className={`font-black text-xl ${overall >= 80 ? 'text-yellow-400' : overall >= 70 ? 'text-green-400' : 'text-slate-200'}`}>{overall}</div></div>
+      <div className="text-center bg-slate-900 p-2 rounded-lg border border-slate-700 min-w-[60px]"><div className="text-[10px] text-slate-500 uppercase font-bold">OVR</div><div className={`font-black text-xl ${overall >= 80 ? 'text-yellow-400' : overall >= 70 ? 'text-green-400' : 'text-slate-200'}`}>{overall}</div></div>
     </div>
   </div>
 );
@@ -330,7 +330,7 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
   const [sortField, setSortField] = useState('overall');
   const [sortDesc, setSortDesc] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterYear, setFilterYear] = useState('all'); 
+  const [filterYear, setFilterYear] = useState('all');
 
   const filteredMatches = useMemo(() => {
     if (filterYear === 'all') return matches;
@@ -344,31 +344,31 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
   const processedPlayers = useMemo(() => {
     return players.map(p => {
       let dynamicStats = { goals: 0, wins: 0, gamesPlayed: 0, assists: 0, cleanSheets: 0, goalContrib: 0, goalsFor: 0, goalsAgainst: 0 };
-      
+
       if (filterYear === '2026') {
-         dynamicStats = calculateStatsFromMatches(p, filteredMatches);
-         dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
+        dynamicStats = calculateStatsFromMatches(p, filteredMatches);
+        dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
       } else {
-         dynamicStats = { 
-           goals: p.goals || 0, 
-           wins: p.wins || 0, 
-           gamesPlayed: p.gamesPlayed || 0,
-           assists: 0,
-           cleanSheets: 0,
-           goalContrib: (p.goals || 0),
-           goalsFor: 0,
-           goalsAgainst: 0
-         };
+        dynamicStats = {
+          goals: p.goals || 0,
+          wins: p.wins || 0,
+          gamesPlayed: p.gamesPlayed || 0,
+          assists: 0,
+          cleanSheets: 0,
+          goalContrib: (p.goals || 0),
+          goalsFor: 0,
+          goalsAgainst: 0
+        };
       }
 
       return {
         ...p,
-        ...dynamicStats, 
+        ...dynamicStats,
         winRate: dynamicStats.gamesPlayed > 0 ? (dynamicStats.wins / dynamicStats.gamesPlayed) * 100 : 0,
         goalsPerGame: dynamicStats.gamesPlayed > 0 ? dynamicStats.goals / dynamicStats.gamesPlayed : 0,
-        overall: calculateOverall(p, dynamicStats) 
+        overall: calculateOverall(p, dynamicStats)
       };
-    }).filter(p => filterYear === 'all' || p.gamesPlayed > 0); 
+    }).filter(p => filterYear === 'all' || p.gamesPlayed > 0);
   }, [players, filteredMatches, filterYear]);
 
   const sortedData = useMemo(() => {
@@ -398,7 +398,7 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
     <th className="p-3 text-left cursor-pointer hover:text-white transition-colors" onClick={() => handleSort(field)}>
       <div className="flex items-center gap-1">
         {label}
-        {sortField === field && (sortDesc ? <ArrowDown size={12}/> : <ArrowUp size={12}/>)}
+        {sortField === field && (sortDesc ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
       </div>
     </th>
   );
@@ -407,21 +407,21 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
     <div className="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 flex flex-col h-full max-h-[80vh]">
       <div className="p-4 border-b border-slate-700">
         <div className="flex justify-between items-center mb-4">
-           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-             <BarChart2 className="text-blue-400" /> Stats
-           </h2>
-           <div className="flex bg-slate-900 rounded-lg p-1">
-             <button onClick={() => setFilterYear('all')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
-             <button onClick={() => setFilterYear('2026')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === '2026' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
-           </div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <BarChart2 className="text-blue-400" /> Stats
+          </h2>
+          <div className="flex bg-slate-900 rounded-lg p-1">
+            <button onClick={() => setFilterYear('all')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
+            <button onClick={() => setFilterYear('2026')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === '2026' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
+          </div>
         </div>
-        
+
         <div className="relative">
           <Search className="absolute left-3 top-3 text-slate-500" size={18} />
           <input type="text" placeholder="Find a player..." className="w-full bg-slate-900 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
       </div>
-      
+
       <div className="overflow-auto flex-1">
         <table className="w-full text-sm text-slate-300">
           <thead className="bg-slate-900 text-slate-500 uppercase font-bold text-xs sticky top-0 z-10">
@@ -465,7 +465,7 @@ const StatsView = ({ players, matches, onSelectPlayer }) => {
 
 const MatchLogger = ({ players, onSave, onCancel }) => {
   const [selectedPlayers, setSelectedPlayers] = useState([]);
-  const [matchData, setMatchData] = useState({}); 
+  const [matchData, setMatchData] = useState({});
   const [teamBluePlayers, setTeamBluePlayers] = useState([]);
   const [teamWhitePlayers, setTeamWhitePlayers] = useState([]);
   const [blueScore, setBlueScore] = useState(0);
@@ -499,15 +499,15 @@ const MatchLogger = ({ players, onSave, onCancel }) => {
 
     const finalData = {};
     selectedPlayers.forEach(pid => {
-       const pData = matchData[pid];
-       const isBlue = pData.team === 'blue';
-       finalData[pid] = {
-         ...pData,
-         win: isBlue ? blueWin : whiteWin,
-         goalsFor: isBlue ? blueScore : whiteScore,
-         goalsAgainst: isBlue ? whiteScore : blueScore,
-         cleanSheet: isBlue ? blueClean : whiteClean
-       };
+      const pData = matchData[pid];
+      const isBlue = pData.team === 'blue';
+      finalData[pid] = {
+        ...pData,
+        win: isBlue ? blueWin : whiteWin,
+        goalsFor: isBlue ? blueScore : whiteScore,
+        goalsAgainst: isBlue ? whiteScore : blueScore,
+        cleanSheet: isBlue ? blueClean : whiteClean
+      };
     });
     onSave(finalData);
   };
@@ -515,9 +515,9 @@ const MatchLogger = ({ players, onSave, onCancel }) => {
   return (
     <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Activity className="text-green-400" /> Log 2026 Match</h2>
-      
+
       <div className="mb-6"><label className="block text-slate-400 text-sm font-bold mb-2 uppercase">Who Played?</label><div className="flex flex-wrap gap-2">{players.map(p => (<button key={p.id} type="button" onClick={() => togglePlayer(p.id)} className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${selectedPlayers.includes(p.id) ? 'bg-green-500 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>{p.name}</button>))}</div></div>
-      
+
       {selectedPlayers.length > 0 && (
         <>
           <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700 mb-6">
@@ -544,7 +544,7 @@ const MatchLogger = ({ players, onSave, onCancel }) => {
                     <span className="font-bold text-white block truncate">{player.name}</span>
                     <button onClick={() => switchTeam(pid, isBlue ? 'white' : 'blue')} className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded mt-1 ${isBlue ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-900'}`}>{isBlue ? 'Blue' : 'White'}</button>
                   </div>
-                  
+
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] text-slate-400 uppercase">Goals</span>
                     <div className="flex items-center gap-1">
@@ -575,10 +575,10 @@ const MatchLogger = ({ players, onSave, onCancel }) => {
 };
 
 const LegacyImporter = ({ onComplete, onCancel }) => {
-  const [step, setStep] = useState('upload'); 
-  const [parsedData, setParsedData] = useState([]); 
+  const [step, setStep] = useState('upload');
+  const [parsedData, setParsedData] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
-  
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -601,13 +601,13 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
 
   const analyzeCSV = (csvText) => {
     const lines = csvText.split(/\r?\n/).map(line => line.split(','));
-    let nameRowIndex = 2; 
+    let nameRowIndex = 2;
     let dataStartIndex = 3;
     if (lines.length < 5) throw new Error("File too short");
     const nameRow = lines[nameRowIndex];
-    const playersMap = {}; 
+    const playersMap = {};
 
-    for (let i = 0; i < nameRow.length; i+=3) {
+    for (let i = 0; i < nameRow.length; i += 3) {
       const name = nameRow[i]?.trim();
       if (name && name.length > 1 && name.toLowerCase() !== 'date') {
         playersMap[i] = { name: name, goals: 0, wins: 0, games: 0 };
@@ -619,14 +619,14 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
       Object.keys(playersMap).forEach(idxStr => {
         const idx = parseInt(idxStr);
         const dateVal = row[idx];
-        const goalsVal = row[idx+1];
-        const winsVal = row[idx+2];
+        const goalsVal = row[idx + 1];
+        const winsVal = row[idx + 2];
         const isValidDate = dateVal && (dateVal.includes('-') || dateVal.includes('/')) && !isNaN(parseInt(dateVal[0]));
         if (isValidDate) {
-           const p = playersMap[idx];
-           p.games++;
-           const g = parseFloat(goalsVal); if (!isNaN(g)) p.goals += g;
-           const w = parseFloat(winsVal); if (!isNaN(w)) p.wins += w;
+          const p = playersMap[idx];
+          p.games++;
+          const g = parseFloat(goalsVal); if (!isNaN(g)) p.goals += g;
+          const w = parseFloat(winsVal); if (!isNaN(w)) p.wins += w;
         }
       });
     }
@@ -639,7 +639,7 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
       const batch = writeBatch(db);
       const playersRef = collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS);
       const snapshot = await getDocs(playersRef);
-      const existingPlayers = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+      const existingPlayers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
       parsedData.forEach(p => {
         const existing = existingPlayers.find(ep => ep.name.toLowerCase() === p.name.toLowerCase());
@@ -666,7 +666,7 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
         <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><FileUp className="text-blue-400" /> Import Tool</h3>
         {step === 'upload' && (
           <div className="flex-1 flex flex-col justify-center">
-             <p className="text-slate-400 text-sm mb-6">Upload the <strong>'Player Stats.csv'</strong> file.</p>
+            <p className="text-slate-400 text-sm mb-6">Upload the <strong>'Player Stats.csv'</strong> file.</p>
             <div className="border-2 border-dashed border-slate-600 rounded-xl p-12 text-center hover:border-blue-500 transition-colors bg-slate-900/50">
               <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" id="csvInput" />
               <label htmlFor="csvInput" className="cursor-pointer flex flex-col items-center">
@@ -695,7 +695,7 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
           </div>
         )}
         {step === 'processing' && (
-           <div className="flex-1 flex flex-col items-center justify-center p-12"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-6"></div><h4 className="text-xl font-bold text-white">Saving to Database...</h4></div>
+          <div className="flex-1 flex flex-col items-center justify-center p-12"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-6"></div><h4 className="text-xl font-bold text-white">Saving to Database...</h4></div>
         )}
         {step === 'complete' && (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center"><CheckCircle2 className="text-green-500 mb-4" size={64} /><h4 className="text-2xl font-bold text-white mb-2">Import Successful!</h4><button onClick={onComplete} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold">Return to Dashboard</button></div>
@@ -747,34 +747,34 @@ const CheckInSystem = ({ players, currentUserRole }) => {
 
   const updateUnlockTime = async () => {
     if (currentUserRole !== 'admin') return;
-    
+
     // FIX: ADDED VALIDATION HERE
     if (!unlockTimeInput) {
-        alert("Please select a date and time.");
-        return;
+      alert("Please select a date and time.");
+      return;
     }
 
     try {
       const date = new Date(unlockTimeInput);
-      
+
       // FIX: CHECK IF DATE IS VALID
       if (isNaN(date.getTime())) {
-          throw new Error("Invalid date selected");
+        throw new Error("Invalid date selected");
       }
 
       await setDoc(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'config'), {
         unlockTime: date.toISOString()
       });
       alert("Unlock time updated!");
-    } catch (err) { 
-        console.error("Settings update failed", err); 
-        alert("Failed to update time: " + err.message);
+    } catch (err) {
+      console.error("Settings update failed", err);
+      alert("Failed to update time: " + err.message);
     }
   };
 
   const isUnlocked = settings.unlockTime ? new Date() >= new Date(settings.unlockTime) : true;
   const canCheckIn = isUnlocked || currentUserRole === 'admin';
-  
+
   // Separate Lists
   const starting12 = checkins.slice(0, 12);
   const waitingList = checkins.slice(12);
@@ -793,7 +793,7 @@ const CheckInSystem = ({ players, currentUserRole }) => {
 
       {currentUserRole === 'admin' && (
         <div className="bg-slate-900/50 p-4 rounded-lg mb-6 border border-slate-700">
-          <h3 className="text-sm font-bold text-yellow-500 uppercase mb-2 flex items-center gap-2"><Shield size={14}/> Admin Controls</h3>
+          <h3 className="text-sm font-bold text-yellow-500 uppercase mb-2 flex items-center gap-2"><Shield size={14} /> Admin Controls</h3>
           <div className="flex gap-2">
             <input type="datetime-local" className="bg-slate-800 text-white text-sm p-2 rounded border border-slate-600 flex-1" onChange={(e) => setUnlockTimeInput(e.target.value)} />
             <button onClick={updateUnlockTime} className="bg-slate-700 text-white px-4 py-2 rounded text-sm font-bold hover:bg-slate-600">Set Unlock Time</button>
@@ -804,15 +804,15 @@ const CheckInSystem = ({ players, currentUserRole }) => {
 
       {canCheckIn ? (
         <div className="flex gap-2 mb-6">
-          <select 
+          <select
             className="flex-1 bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
             value={selectedPlayer}
             onChange={(e) => setSelectedPlayer(e.target.value)}
           >
             <option value="">Select Your Name...</option>
             {players
-              .filter(p => !checkins.some(c => c.playerId === p.id)) 
-              .sort((a,b) => a.name.localeCompare(b.name))
+              .filter(p => !checkins.some(c => c.playerId === p.id))
+              .sort((a, b) => a.name.localeCompare(b.name))
               .map(p => <option key={p.id} value={p.id}>{p.name}</option>)
             }
           </select>
@@ -840,10 +840,10 @@ const CheckInSystem = ({ players, currentUserRole }) => {
                 <span className="font-bold text-white">{c.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">{c.timestamp ? new Date(c.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                <span className="text-xs text-slate-500">{c.timestamp ? new Date(c.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                 {/* ALLOW ADMIN OR USER TO REMOVE */}
                 <button onClick={() => handleRemoveCheckIn(c.id)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded ml-2" title="I'm Out">
-                  <UserMinus size={14}/>
+                  <UserMinus size={14} />
                 </button>
               </div>
             </div>
@@ -854,7 +854,7 @@ const CheckInSystem = ({ players, currentUserRole }) => {
       {/* Waiting List */}
       {waitingList.length > 0 && (
         <div className="mt-6 border-t border-slate-700 pt-4">
-          <h3 className="text-orange-400 font-bold uppercase text-xs mb-2 tracking-wider flex items-center gap-2"><Clock size={12}/> Waiting List</h3>
+          <h3 className="text-orange-400 font-bold uppercase text-xs mb-2 tracking-wider flex items-center gap-2"><Clock size={12} /> Waiting List</h3>
           <div className="space-y-2">
             {waitingList.map((c, idx) => (
               <div key={c.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-dashed border-slate-700 opacity-70">
@@ -864,7 +864,7 @@ const CheckInSystem = ({ players, currentUserRole }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => handleRemoveCheckIn(c.id)} className="text-red-500 hover:text-red-400 p-1">
-                    <UserMinus size={14}/>
+                    <UserMinus size={14} />
                   </button>
                 </div>
               </div>
@@ -904,7 +904,7 @@ const TeamGenerator = ({ players }) => {
 
     // 1. Sort by Rating (Best to Worst)
     const sorted = [...confirmedPlayers].sort((a, b) => calculateOverall(b) - calculateOverall(a));
-    
+
     const blue = [];
     const white = [];
 
@@ -939,7 +939,7 @@ const TeamGenerator = ({ players }) => {
               <span className="font-bold text-sm text-yellow-500 w-6 text-center">{calculateOverall(p)}</span>
               <span className="text-white text-sm truncate max-w-[100px]">{p.name}</span>
             </div>
-            <button 
+            <button
               onClick={() => movePlayer(p, teamList, setOther === setTeamBlue ? teamBlue : teamWhite, setSelf, setOther)}
               className="text-slate-400 hover:text-white p-1"
             >
@@ -951,8 +951,8 @@ const TeamGenerator = ({ players }) => {
       <div className="mt-4 pt-2 border-t border-slate-700 text-center">
         <span className="text-slate-500 text-xs uppercase">Avg Rating</span>
         <div className="text-xl font-mono font-bold text-white">
-          {teamList.length > 0 
-            ? Math.round(teamList.reduce((acc, p) => acc + calculateOverall(p), 0) / teamList.length) 
+          {teamList.length > 0
+            ? Math.round(teamList.reduce((acc, p) => acc + calculateOverall(p), 0) / teamList.length)
             : 0}
         </div>
       </div>
@@ -974,7 +974,7 @@ const TeamGenerator = ({ players }) => {
         <TeamColumn title="Blue Team" colorClass="border-blue-500" teamList={teamBlue} setSelf={setTeamBlue} setOther={setTeamWhite} />
         <TeamColumn title="White Team" colorClass="border-slate-200" teamList={teamWhite} setSelf={setTeamWhite} setOther={setTeamBlue} />
       </div>
-      
+
       {teamBlue.length === 0 && (
         <div className="text-center text-slate-500 italic mt-8">
           Click "AI Generate" to split the {confirmedPlayers.length} confirmed players.
@@ -986,19 +986,19 @@ const TeamGenerator = ({ players }) => {
 
 // --- 4. Main Application ---
 export default function FridayNightFUT() {
-  const [authStatus, setAuthStatus] = useState({ loggedIn: false, role: 'player' }); 
+  const [authStatus, setAuthStatus] = useState({ loggedIn: false, role: 'player' });
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('dashboard'); 
+  const [view, setView] = useState('dashboard');
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [checkins, setCheckins] = useState([]); // New State for Checkins
   const [loading, setLoading] = useState(true);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [showImporter, setShowImporter] = useState(false);
-  const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null); 
+  const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null);
   const [filterCheckedIn, setFilterCheckedIn] = useState(false); // New Filter State
   const [quickAddPlayer, setQuickAddPlayer] = useState(''); // New Quick Add State
-  
+
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
   const [ratingsForm, setRatingsForm] = useState({ fitness: 3, control: 3, shooting: 3, defense: 3 });
@@ -1009,7 +1009,7 @@ export default function FridayNightFUT() {
     if (savedAccess === 'granted') {
       setAuthStatus({ loggedIn: true, role: savedRole || 'player' });
     }
-    const doAuth = async () => { try { await signInAnonymously(auth); } catch (err) {} };
+    const doAuth = async () => { try { await signInAnonymously(auth); } catch (err) { } };
     doAuth();
     return onAuthStateChanged(auth, (u) => { setUser(u); if (u) setLoading(false); });
   }, []);
@@ -1027,7 +1027,7 @@ export default function FridayNightFUT() {
       mList.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
       setMatches(mList);
     });
-    
+
     // Also listen to checkins globally so we can show badges
     const qCheckins = query(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS), orderBy("timestamp", "asc"));
     const unsubCheckins = onSnapshot(qCheckins, (snapshot) => {
@@ -1069,20 +1069,20 @@ export default function FridayNightFUT() {
 
     try {
       if (existingPlayer) {
-         // Update existing player with historical stats (merge)
-         const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existingPlayer.id);
-         await updateDoc(ref, {
-           goals: seedPlayer.goals,
-           wins: seedPlayer.wins,
-           gamesPlayed: seedPlayer.gamesPlayed
-         });
-         alert(`Updated ${seedPlayer.name}'s stats!`);
+        // Update existing player with historical stats (merge)
+        const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existingPlayer.id);
+        await updateDoc(ref, {
+          goals: seedPlayer.goals,
+          wins: seedPlayer.wins,
+          gamesPlayed: seedPlayer.gamesPlayed
+        });
+        alert(`Updated ${seedPlayer.name}'s stats!`);
       } else {
-         // Create new player
-         await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS), { 
+        // Create new player
+        await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS), {
           ...seedPlayer,
           assists: 0,
-          createdAt: serverTimestamp() 
+          createdAt: serverTimestamp()
         });
         alert(`Added ${seedPlayer.name} to the squad!`);
       }
@@ -1107,33 +1107,33 @@ export default function FridayNightFUT() {
   };
 
   const handleSeedData = async () => {
-    if(!confirm("This will add/update ALL historic player stats. Continue?")) return;
+    if (!window.confirm("This will add/update ALL historic player stats. Continue?")) return;
     const batch = writeBatch(db);
     let count = 0;
-    
+
     SEED_DATA.forEach(p => {
       const existing = players.find(ep => ep.name.toLowerCase() === p.name.toLowerCase());
       if (existing) {
-         // UPDATE existing (merge stats)
-         const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id);
-         batch.update(ref, { 
-           goals: p.goals, 
-           wins: p.wins, 
-           gamesPlayed: p.gamesPlayed 
-         });
-         count++;
+        // UPDATE existing (merge stats)
+        const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id);
+        batch.update(ref, {
+          goals: p.goals,
+          wins: p.wins,
+          gamesPlayed: p.gamesPlayed
+        });
+        count++;
       } else {
         // CREATE new
         const newRef = doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
-        batch.set(newRef, { 
-          ...p, 
-          assists: 0, 
-          createdAt: serverTimestamp() 
+        batch.set(newRef, {
+          ...p,
+          assists: 0,
+          createdAt: serverTimestamp()
         });
         count++;
       }
     });
-    
+
     await batch.commit();
     alert(`Successfully processed ${count} player records!`);
   };
@@ -1145,13 +1145,13 @@ export default function FridayNightFUT() {
     await updateDoc(playerRef, { photoUrl: base64 });
     setSelectedPlayerForEdit({ ...selectedPlayerForEdit, photoUrl: base64 });
   };
-  
+
   // Save edited ratings
   const handleSaveRatings = async () => {
     if (!selectedPlayerForEdit) return;
     const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
     await updateDoc(playerRef, { ratings: ratingsForm });
-    
+
     // Update local state for immediate feedback
     setSelectedPlayerForEdit({ ...selectedPlayerForEdit, ratings: ratingsForm });
     setShowRatingsModal(false);
@@ -1190,7 +1190,7 @@ export default function FridayNightFUT() {
           <div className="flex items-center gap-2">
             {authStatus.role === 'admin' && <div className="bg-yellow-500 text-slate-900 text-xs font-bold px-2 py-1 rounded">ADMIN</div>}
             {authStatus.role === 'admin' && <button onClick={() => setView('add-match')} className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1"><Plus size={16} /> Match</button>}
-            <button onClick={handleLogout} className="text-slate-500 hover:text-white"><Lock size={16}/></button>
+            <button onClick={handleLogout} className="text-slate-500 hover:text-white"><Lock size={16} /></button>
           </div>
         </div>
       </header>
@@ -1209,10 +1209,10 @@ export default function FridayNightFUT() {
               </div>
             </section>
             <section>
-               <div className="flex justify-between items-end mb-4"><h2 className="text-slate-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2"><TrendingUp size={16} /> Season Standings</h2></div>
+              <div className="flex justify-between items-end mb-4"><h2 className="text-slate-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2"><TrendingUp size={16} /> Season Standings</h2></div>
               <div className="bg-slate-800 rounded-xl overflow-hidden shadow-xl border border-slate-700">
                 {sortedPlayers.map((player, idx) => (
-                  <div key={player.id} onClick={() => { if(authStatus.role === 'admin') setSelectedPlayerForEdit(player); }} className={`${authStatus.role === 'admin' ? 'cursor-pointer' : ''}`}>
+                  <div key={player.id} onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit(player); }} className={`${authStatus.role === 'admin' ? 'cursor-pointer' : ''}`}>
                     <LeaderboardRow player={player} rank={idx + 1} overall={calculateOverall(player)} />
                   </div>
                 ))}
@@ -1222,28 +1222,28 @@ export default function FridayNightFUT() {
         )}
 
         {view === 'add-match' && authStatus.role === 'admin' && <MatchLogger players={players} onSave={handleSaveMatch} onCancel={() => setView('dashboard')} />}
-        
+
         {view === 'teams' && authStatus.role === 'admin' && <TeamGenerator players={players} />}
 
         {view === 'stats' && <StatsView players={players} matches={matches} onSelectPlayer={(p) => setSelectedPlayerForEdit(p)} />}
 
         {view === 'players' && (
           <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
-             <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
-               <h2 className="text-2xl font-bold text-white">Squad</h2>
-               <div className="flex gap-2">
-                 <button onClick={() => setFilterCheckedIn(!filterCheckedIn)} className={`px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2 border ${filterCheckedIn ? 'bg-green-500/20 text-green-400 border-green-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-                   <Filter size={16} /> {filterCheckedIn ? 'Show All' : 'Show Checked In'}
-                 </button>
-                 {authStatus.role === 'admin' && (
-                   <>
+            <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+              <h2 className="text-2xl font-bold text-white">Squad</h2>
+              <div className="flex gap-2">
+                <button onClick={() => setFilterCheckedIn(!filterCheckedIn)} className={`px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2 border ${filterCheckedIn ? 'bg-green-500/20 text-green-400 border-green-500' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                  <Filter size={16} /> {filterCheckedIn ? 'Show All' : 'Show Checked In'}
+                </button>
+                {authStatus.role === 'admin' && (
+                  <>
                     <button onClick={handleSeedData} className="bg-yellow-600/20 text-yellow-400 px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2"><Zap size={16} /> Load All History</button>
                     <button onClick={() => setShowImporter(true)} className="bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2"><FileUp size={16} /> Import CSV</button>
-                   </>
-                 )}
-               </div>
+                  </>
+                )}
+              </div>
             </div>
-            
+
             {/* UPDATED: Add Player Form with Quick Select */}
             {authStatus.role === 'admin' && (
               <div className="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-700">
@@ -1251,7 +1251,7 @@ export default function FridayNightFUT() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Quick Add Legend */}
                   <form onSubmit={handleQuickAdd} className="flex gap-2">
-                    <select 
+                    <select
                       className="flex-1 bg-slate-800 text-white p-2 rounded border border-slate-600 text-sm"
                       value={quickAddPlayer}
                       onChange={(e) => setQuickAddPlayer(e.target.value)}
@@ -1265,15 +1265,15 @@ export default function FridayNightFUT() {
                       <UserPlus size={16} /> Add/Update
                     </button>
                   </form>
-                  
+
                   {/* Manual Add */}
                   <form onSubmit={handleAddPlayer} className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="Or type new name..." 
-                      className="flex-1 bg-slate-800 border border-slate-600 text-white px-4 py-2 rounded text-sm" 
-                      value={newPlayerName} 
-                      onChange={(e) => setNewPlayerName(e.target.value)} 
+                    <input
+                      type="text"
+                      placeholder="Or type new name..."
+                      className="flex-1 bg-slate-800 border border-slate-600 text-white px-4 py-2 rounded text-sm"
+                      value={newPlayerName}
+                      onChange={(e) => setNewPlayerName(e.target.value)}
                     />
                     <button type="submit" disabled={!newPlayerName} className="bg-green-600 disabled:opacity-50 hover:bg-green-500 text-white px-4 py-2 rounded text-sm font-bold">
                       Create
@@ -1288,7 +1288,7 @@ export default function FridayNightFUT() {
               {squadDisplayPlayers.map(p => {
                 const status = getPlayerStatus(p.id);
                 return (
-                  <div key={p.id} onClick={() => { if(authStatus.role === 'admin') setSelectedPlayerForEdit(p); }} className={`flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 group ${authStatus.role === 'admin' ? 'cursor-pointer hover:border-slate-600' : ''}`}>
+                  <div key={p.id} onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit(p); }} className={`flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 group ${authStatus.role === 'admin' ? 'cursor-pointer hover:border-slate-600' : ''}`}>
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700">
@@ -1303,34 +1303,34 @@ export default function FridayNightFUT() {
                     <div className="text-xs text-slate-500 flex items-center gap-2">
                       {status === 'in' && <span className="text-green-400 font-bold uppercase text-[10px]">Playing</span>}
                       {status === 'waitlist' && <span className="text-orange-400 font-bold uppercase text-[10px]">Waitlist</span>}
-                      <span className="ml-2">{p.gamesPlayed} Apps</span> 
+                      <span className="ml-2">{p.gamesPlayed} Apps</span>
                       {authStatus.role === 'admin' && <div className="opacity-0 group-hover:opacity-100 bg-slate-700 p-1 rounded-full text-white"><Camera size={12} /></div>}
                     </div>
                   </div>
                 );
               })}
             </div>
-             <button onClick={() => setView('dashboard')} className="mt-8 text-slate-400 hover:text-white text-sm font-bold flex items-center gap-1">← Back to Dashboard</button>
+            <button onClick={() => setView('dashboard')} className="mt-8 text-slate-400 hover:text-white text-sm font-bold flex items-center gap-1">← Back to Dashboard</button>
           </div>
         )}
 
         {selectedPlayerForEdit && (
           <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPlayerForEdit(null)}>
             <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-              <button 
-                onClick={() => setSelectedPlayerForEdit(null)} 
+              <button
+                onClick={() => setSelectedPlayerForEdit(null)}
                 className="absolute -top-10 right-0 text-white/80 hover:text-white p-2 flex items-center gap-1"
               >
                 <span className="text-sm font-bold uppercase">Close</span> <X size={24} />
               </button>
-              
+
               {!showRatingsModal ? (
                 <>
                   <div className="mb-6">
-                    <PlayerCard 
-                      player={selectedPlayerForEdit} 
-                      rank={sortedPlayers.findIndex(p => p.id === selectedPlayerForEdit.id) + 1} 
-                      onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()} 
+                    <PlayerCard
+                      player={selectedPlayerForEdit}
+                      rank={sortedPlayers.findIndex(p => p.id === selectedPlayerForEdit.id) + 1}
+                      onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()}
                       canEdit={authStatus.role === 'admin'}
                       onEditRatings={() => {
                         setRatingsForm(selectedPlayerForEdit.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
@@ -1343,7 +1343,7 @@ export default function FridayNightFUT() {
                   {authStatus.role === 'admin' && (
                     <div className="bg-slate-800 rounded-xl p-4 text-center mb-4">
                       <p className="text-slate-400 text-sm mb-4">Tap card photo to upload image.</p>
-                      <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={(e) => { if(e.target.files[0]) handleImageUpload(e.target.files[0]); }} />
+                      <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files[0]) handleImageUpload(e.target.files[0]); }} />
                       <button onClick={() => document.getElementById('photo-upload').click()} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
                         <Upload size={18} /> Upload Photo
                       </button>
@@ -1351,7 +1351,7 @@ export default function FridayNightFUT() {
                   )}
 
                   {/* Explicit Back Button for mobile users */}
-                  <button 
+                  <button
                     onClick={() => setSelectedPlayerForEdit(null)}
                     className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-lg transition-all"
                   >
@@ -1364,19 +1364,19 @@ export default function FridayNightFUT() {
                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
                       <Sliders size={20} className="text-yellow-500" /> Edit Attributes
                     </h3>
-                    <button onClick={() => setShowRatingsModal(false)} className="text-slate-500 hover:text-white"><X size={20}/></button>
+                    <button onClick={() => setShowRatingsModal(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
                   </div>
-                  
+
                   <div className="space-y-6">
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <label className="font-bold text-slate-300">Fitness / Speed</label>
                         <span className="font-mono text-yellow-500">{ratingsForm.fitness}</span>
                       </div>
-                      <input 
-                        type="range" min="1" max="5" step="0.1" 
-                        value={ratingsForm.fitness} 
-                        onChange={(e) => setRatingsForm({...ratingsForm, fitness: parseFloat(e.target.value)})}
+                      <input
+                        type="range" min="1" max="5" step="0.1"
+                        value={ratingsForm.fitness}
+                        onChange={(e) => setRatingsForm({ ...ratingsForm, fitness: parseFloat(e.target.value) })}
                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                       />
                     </div>
@@ -1385,10 +1385,10 @@ export default function FridayNightFUT() {
                         <label className="font-bold text-slate-300">Ball Control / Passing</label>
                         <span className="font-mono text-yellow-500">{ratingsForm.control}</span>
                       </div>
-                      <input 
-                        type="range" min="1" max="5" step="0.1" 
-                        value={ratingsForm.control} 
-                        onChange={(e) => setRatingsForm({...ratingsForm, control: parseFloat(e.target.value)})}
+                      <input
+                        type="range" min="1" max="5" step="0.1"
+                        value={ratingsForm.control}
+                        onChange={(e) => setRatingsForm({ ...ratingsForm, control: parseFloat(e.target.value) })}
                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                       />
                     </div>
@@ -1397,10 +1397,10 @@ export default function FridayNightFUT() {
                         <label className="font-bold text-slate-300">Shooting & Finishing</label>
                         <span className="font-mono text-yellow-500">{ratingsForm.shooting}</span>
                       </div>
-                      <input 
-                        type="range" min="1" max="5" step="0.1" 
-                        value={ratingsForm.shooting} 
-                        onChange={(e) => setRatingsForm({...ratingsForm, shooting: parseFloat(e.target.value)})}
+                      <input
+                        type="range" min="1" max="5" step="0.1"
+                        value={ratingsForm.shooting}
+                        onChange={(e) => setRatingsForm({ ...ratingsForm, shooting: parseFloat(e.target.value) })}
                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                       />
                     </div>
@@ -1409,16 +1409,16 @@ export default function FridayNightFUT() {
                         <label className="font-bold text-slate-300">Defensive Awareness</label>
                         <span className="font-mono text-yellow-500">{ratingsForm.defense}</span>
                       </div>
-                      <input 
-                        type="range" min="1" max="5" step="0.1" 
-                        value={ratingsForm.defense} 
-                        onChange={(e) => setRatingsForm({...ratingsForm, defense: parseFloat(e.target.value)})}
+                      <input
+                        type="range" min="1" max="5" step="0.1"
+                        value={ratingsForm.defense}
+                        onChange={(e) => setRatingsForm({ ...ratingsForm, defense: parseFloat(e.target.value) })}
                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                       />
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     onClick={handleSaveRatings}
                     className="w-full mt-8 bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg"
                   >
