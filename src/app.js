@@ -48,7 +48,8 @@ import {
   ArrowDown,
   Filter,
   UserPlus,
-  Sliders
+  Sliders,
+  Trash2
 } from 'lucide-react';
 
 // --- 1. FIREBASE INITIALIZATION ---
@@ -568,9 +569,40 @@ const MatchLogger = ({ players, onSave, onCancel }) => {
 };
 
 const LegacyImporter = ({ onComplete, onCancel }) => {
-  const [step, setStep] = useState('upload');
+  const [step, setStep] = useState('select');
+  const [importType, setImportType] = useState('alltime'); // 'alltime' or '2026'
   const [parsedData, setParsedData] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Download CSV template
+  const downloadTemplate = (type) => {
+    let csvContent = '';
+    let filename = '';
+
+    if (type === 'alltime') {
+      csvContent = 'Name,GamesPlayed,Goals,Wins\n';
+      csvContent += 'Amar,102,53,57\n';
+      csvContent += 'JT,68,46,32\n';
+      csvContent += 'Johann,67,43,30.5\n';
+      filename = 'alltime_stats_template.csv';
+    } else {
+      csvContent = 'Name,Date,Goals,Assists,Team,Result,GoalsFor,GoalsAgainst\n';
+      csvContent += 'Amar,2026-01-03,2,1,Blue,Win,5,2\n';
+      csvContent += 'JT,2026-01-03,1,0,White,Loss,2,5\n';
+      csvContent += 'Johann,2026-01-03,1,2,Blue,Win,5,2\n';
+      filename = '2026_stats_template.csv';
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -579,51 +611,118 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
     reader.onload = async (event) => {
       try {
         const text = event.target.result;
-        const results = analyzeCSV(text);
-        results.sort((a, b) => b.games - a.games);
+        const results = importType === 'alltime' ? parseAllTimeCSV(text) : parse2026CSV(text);
+        if (results.length === 0) {
+          throw new Error("No valid data found in CSV");
+        }
         setParsedData(results);
         setStep('preview');
       } catch (err) {
         console.error(err);
-        setErrorMsg("Could not parse file. Ensure it is the 'Player Stats.csv' export.");
+        setErrorMsg(err.message || "Could not parse file. Please check the format and try again.");
         setStep('error');
       }
     };
     reader.readAsText(file);
   };
 
-  const analyzeCSV = (csvText) => {
-    const lines = csvText.split(/\r?\n/).map(line => line.split(','));
-    let nameRowIndex = 2;
-    let dataStartIndex = 3;
-    if (lines.length < 5) throw new Error("File too short");
-    const nameRow = lines[nameRowIndex];
-    const playersMap = {};
+  const parseAllTimeCSV = (csvText) => {
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new Error("File is too short. Need at least a header row and one data row.");
 
-    for (let i = 0; i < nameRow.length; i += 3) {
-      const name = nameRow[i]?.trim();
-      if (name && name.length > 1 && name.toLowerCase() !== 'date') {
-        playersMap[i] = { name: name, goals: 0, wins: 0, games: 0 };
+    const header = lines[0].toLowerCase();
+    if (!header.includes('name') || !header.includes('games') || !header.includes('goals') || !header.includes('wins')) {
+      throw new Error("Invalid format. Expected columns: Name, GamesPlayed, Goals, Wins");
+    }
+
+    const results = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const parts = line.split(',');
+      if (parts.length < 4) continue;
+
+      const name = parts[0]?.trim();
+      const games = parseInt(parts[1]);
+      const goals = parseFloat(parts[2]);
+      const wins = parseFloat(parts[3]);
+
+      if (name && !isNaN(games) && !isNaN(goals) && !isNaN(wins)) {
+        results.push({ name, games, goals, wins });
       }
     }
 
-    for (let r = dataStartIndex; r < lines.length; r++) {
-      const row = lines[r];
-      Object.keys(playersMap).forEach(idxStr => {
-        const idx = parseInt(idxStr);
-        const dateVal = row[idx];
-        const goalsVal = row[idx + 1];
-        const winsVal = row[idx + 2];
-        const isValidDate = dateVal && (dateVal.includes('-') || dateVal.includes('/')) && !isNaN(parseInt(dateVal[0]));
-        if (isValidDate) {
-          const p = playersMap[idx];
-          p.games++;
-          const g = parseFloat(goalsVal); if (!isNaN(g)) p.goals += g;
-          const w = parseFloat(winsVal); if (!isNaN(w)) p.wins += w;
-        }
-      });
+    return results.sort((a, b) => b.games - a.games);
+  };
+
+  const parse2026CSV = (csvText) => {
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new Error("File is too short. Need at least a header row and one data row.");
+
+    const header = lines[0].toLowerCase();
+    if (!header.includes('name') || !header.includes('date')) {
+      throw new Error("Invalid format. Expected columns: Name, Date, Goals, Assists, Team, Result, GoalsFor, GoalsAgainst");
     }
-    return Object.values(playersMap);
+
+    const matches = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const parts = line.split(',');
+      if (parts.length < 8) continue;
+
+      const name = parts[0]?.trim();
+      const date = parts[1]?.trim();
+      const goals = parseInt(parts[2]) || 0;
+      const assists = parseInt(parts[3]) || 0;
+      const team = parts[4]?.trim().toLowerCase();
+      const result = parts[5]?.trim().toLowerCase();
+      const goalsFor = parseInt(parts[6]) || 0;
+      const goalsAgainst = parseInt(parts[7]) || 0;
+
+      if (name && date) {
+        matches.push({
+          name,
+          date,
+          goals,
+          assists,
+          team,
+          result,
+          goalsFor,
+          goalsAgainst
+        });
+      }
+    }
+
+    // Aggregate by player
+    const playerStats = {};
+    matches.forEach(m => {
+      if (!playerStats[m.name]) {
+        playerStats[m.name] = {
+          name: m.name,
+          games: 0,
+          goals: 0,
+          wins: 0,
+          assists: 0,
+          cleanSheets: 0,
+          goalsFor: 0,
+          goalsAgainst: 0
+        };
+      }
+      const p = playerStats[m.name];
+      p.games++;
+      p.goals += m.goals;
+      p.assists += m.assists;
+      p.goalsFor += m.goalsFor;
+      p.goalsAgainst += m.goalsAgainst;
+      if (m.goalsAgainst === 0) p.cleanSheets++;
+      if (m.result === 'win') p.wins += 1;
+      else if (m.result === 'draw' || m.result === 'tie') p.wins += 0.5;
+    });
+
+    return Object.values(playerStats).sort((a, b) => b.games - a.games);
   };
 
   const confirmImport = async () => {
@@ -638,10 +737,38 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
         const existing = existingPlayers.find(ep => ep.name.toLowerCase() === p.name.toLowerCase());
         if (existing) {
           const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id);
-          batch.update(ref, { goals: p.goals, wins: p.wins, gamesPlayed: p.games, assists: existing.assists || 0 });
+          const updates = {
+            goals: (existing.goals || 0) + p.goals,
+            wins: (existing.wins || 0) + p.wins,
+            gamesPlayed: (existing.gamesPlayed || 0) + p.games,
+            assists: (existing.assists || 0) + (p.assists || 0)
+          };
+          // Add 2026-specific stats if available
+          if (p.cleanSheets !== undefined) {
+            updates.cleanSheets = (existing.cleanSheets || 0) + p.cleanSheets;
+          }
+          if (p.goalsFor !== undefined) {
+            updates.goalsFor = (existing.goalsFor || 0) + p.goalsFor;
+          }
+          if (p.goalsAgainst !== undefined) {
+            updates.goalsAgainst = (existing.goalsAgainst || 0) + p.goalsAgainst;
+          }
+          batch.update(ref, updates);
         } else {
           const newRef = doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
-          batch.set(newRef, { name: p.name, goals: p.goals, wins: p.wins, gamesPlayed: p.games, assists: 0, createdAt: serverTimestamp() });
+          const newPlayer = {
+            name: p.name,
+            goals: p.goals,
+            wins: p.wins,
+            gamesPlayed: p.games,
+            assists: p.assists || 0,
+            createdAt: serverTimestamp()
+          };
+          // Add 2026-specific stats if available
+          if (p.cleanSheets !== undefined) newPlayer.cleanSheets = p.cleanSheets;
+          if (p.goalsFor !== undefined) newPlayer.goalsFor = p.goalsFor;
+          if (p.goalsAgainst !== undefined) newPlayer.goalsAgainst = p.goalsAgainst;
+          batch.set(newRef, newPlayer);
         }
       });
       await batch.commit();
@@ -655,46 +782,174 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl max-w-2xl w-full p-6 border border-slate-700 shadow-2xl flex flex-col max-h-[90vh]">
-        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><FileUp className="text-blue-400" /> Import Tool</h3>
-        {step === 'upload' && (
-          <div className="flex-1 flex flex-col justify-center">
-            <p className="text-slate-400 text-sm mb-6">Upload the <strong>'Player Stats.csv'</strong> file.</p>
-            <div className="border-2 border-dashed border-slate-600 rounded-xl p-12 text-center hover:border-blue-500 transition-colors bg-slate-900/50">
-              <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" id="csvInput" />
-              <label htmlFor="csvInput" className="cursor-pointer flex flex-col items-center">
-                <FileUp className="text-slate-500 mb-4" size={48} /><span className="text-blue-400 font-bold text-lg hover:underline">Click to upload CSV</span>
-              </label>
+      <div className="bg-slate-800 rounded-2xl max-w-3xl w-full p-6 border border-slate-700 shadow-2xl flex flex-col max-h-[90vh]">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><FileUp className="text-blue-400" /> CSV Import Tool</h3>
+
+        {step === 'select' && (
+          <div className="flex-1 flex flex-col">
+            <p className="text-slate-400 text-sm mb-6">Choose which type of data you want to import:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={() => { setImportType('alltime'); setStep('upload'); }}
+                className="bg-slate-700 hover:bg-slate-600 border-2 border-slate-600 hover:border-blue-500 rounded-xl p-6 text-left transition-all group"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <BarChart2 className="text-yellow-400" size={32} />
+                  <h4 className="text-lg font-bold text-white">All-Time Stats</h4>
+                </div>
+                <p className="text-slate-400 text-sm mb-4">Import cumulative career statistics for players</p>
+                <div className="bg-slate-900/50 rounded p-3 text-xs font-mono text-slate-300">
+                  <div className="text-slate-500 mb-1">Format:</div>
+                  Name, GamesPlayed, Goals, Wins
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); downloadTemplate('alltime'); }}
+                  className="mt-4 text-blue-400 text-sm font-bold hover:underline flex items-center gap-1"
+                >
+                  <Upload size={14} /> Download Template
+                </button>
+              </button>
+
+              <button
+                onClick={() => { setImportType('2026'); setStep('upload'); }}
+                className="bg-slate-700 hover:bg-slate-600 border-2 border-slate-600 hover:border-green-500 rounded-xl p-6 text-left transition-all group"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <CalendarDays className="text-green-400" size={32} />
+                  <h4 className="text-lg font-bold text-white">2026 Season Stats</h4>
+                </div>
+                <p className="text-slate-400 text-sm mb-4">Import match-by-match data for 2026 season</p>
+                <div className="bg-slate-900/50 rounded p-3 text-xs font-mono text-slate-300">
+                  <div className="text-slate-500 mb-1">Format:</div>
+                  Name, Date, Goals, Assists, Team, Result...
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); downloadTemplate('2026'); }}
+                  className="mt-4 text-blue-400 text-sm font-bold hover:underline flex items-center gap-1"
+                >
+                  <Upload size={14} /> Download Template
+                </button>
+              </button>
             </div>
-            <button onClick={onCancel} className="mt-8 text-slate-500 font-bold hover:text-white">Cancel</button>
+            <button onClick={onCancel} className="mt-4 text-slate-500 font-bold hover:text-white">Cancel</button>
           </div>
         )}
+
+        {step === 'upload' && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 text-sm">Import Type:</span>
+                <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                  {importType === 'alltime' ? 'All-Time Stats' : '2026 Season'}
+                </span>
+              </div>
+              <button onClick={() => setStep('select')} className="text-slate-400 hover:text-white text-sm">Change</button>
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 mb-4">
+              <h4 className="text-white font-bold text-sm mb-2 flex items-center gap-2">
+                <AlertCircle size={16} className="text-blue-400" /> Expected Format
+              </h4>
+              {importType === 'alltime' ? (
+                <div className="text-xs text-slate-300 font-mono">
+                  <div className="text-blue-400 mb-1">Name,GamesPlayed,Goals,Wins</div>
+                  <div className="text-slate-500">Amar,102,53,57</div>
+                  <div className="text-slate-500">JT,68,46,32</div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-300 font-mono">
+                  <div className="text-green-400 mb-1">Name,Date,Goals,Assists,Team,Result,GoalsFor,GoalsAgainst</div>
+                  <div className="text-slate-500">Amar,2026-01-03,2,1,Blue,Win,5,2</div>
+                  <div className="text-slate-500">JT,2026-01-03,1,0,White,Loss,2,5</div>
+                </div>
+              )}
+              <button
+                onClick={() => downloadTemplate(importType)}
+                className="mt-3 text-blue-400 text-xs font-bold hover:underline flex items-center gap-1"
+              >
+                <Upload size={12} /> Download Template CSV
+              </button>
+            </div>
+
+            <div className="border-2 border-dashed border-slate-600 rounded-xl p-12 text-center hover:border-blue-500 transition-colors bg-slate-900/50 mb-4">
+              <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" id="csvInput" />
+              <label htmlFor="csvInput" className="cursor-pointer flex flex-col items-center">
+                <FileUp className="text-slate-500 mb-4" size={48} />
+                <span className="text-blue-400 font-bold text-lg hover:underline">Click to upload CSV</span>
+                <span className="text-slate-500 text-sm mt-2">Make sure your CSV matches the format above</span>
+              </label>
+            </div>
+            <button onClick={() => setStep('select')} className="text-slate-500 font-bold hover:text-white">Back</button>
+          </div>
+        )}
+
         {step === 'preview' && (
           <div className="flex-1 overflow-hidden flex flex-col">
             <p className="text-green-400 font-bold mb-4">Found {parsedData.length} Players. Please check the data:</p>
             <div className="flex-1 overflow-y-auto border border-slate-700 rounded-lg bg-slate-900/50 mb-6">
               <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-slate-800 text-slate-400 uppercase font-bold sticky top-0"><tr><th className="p-3">Player</th><th className="p-3 text-center">Games</th><th className="p-3 text-center">Goals</th><th className="p-3 text-center">Wins</th></tr></thead>
+                <thead className="bg-slate-800 text-slate-400 uppercase font-bold sticky top-0">
+                  <tr>
+                    <th className="p-3">Player</th>
+                    <th className="p-3 text-center">Games</th>
+                    <th className="p-3 text-center">Goals</th>
+                    {importType === '2026' && <th className="p-3 text-center">Assists</th>}
+                    {importType === '2026' && <th className="p-3 text-center">CS</th>}
+                    {importType === '2026' && <th className="p-3 text-center">GF</th>}
+                    {importType === '2026' && <th className="p-3 text-center">GA</th>}
+                    <th className="p-3 text-center">Wins</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-800">
                   {parsedData.map((p, idx) => (
                     <tr key={idx} className="hover:bg-slate-800/50">
-                      <td className="p-3 font-bold text-white">{p.name}</td><td className="p-3 text-center font-mono">{p.games}</td><td className="p-3 text-center font-mono text-green-400">{p.goals}</td><td className="p-3 text-center font-mono text-yellow-500">{p.wins}</td>
+                      <td className="p-3 font-bold text-white">{p.name}</td>
+                      <td className="p-3 text-center font-mono">{p.games}</td>
+                      <td className="p-3 text-center font-mono text-green-400">{p.goals}</td>
+                      {importType === '2026' && <td className="p-3 text-center font-mono text-blue-400">{p.assists || 0}</td>}
+                      {importType === '2026' && <td className="p-3 text-center font-mono text-yellow-400">{p.cleanSheets || 0}</td>}
+                      {importType === '2026' && <td className="p-3 text-center font-mono text-green-300">{p.goalsFor || 0}</td>}
+                      {importType === '2026' && <td className="p-3 text-center font-mono text-red-400">{p.goalsAgainst || 0}</td>}
+                      <td className="p-3 text-center font-mono text-yellow-500">{p.wins}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-4"><button onClick={confirmImport} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold">Import Everything</button><button onClick={() => setStep('upload')} className="px-6 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-600">Back</button></div>
+            <div className="flex gap-4">
+              <button onClick={confirmImport} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold">Import Everything</button>
+              <button onClick={() => setStep('upload')} className="px-6 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-600">Back</button>
+            </div>
           </div>
         )}
+
         {step === 'processing' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-12"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-6"></div><h4 className="text-xl font-bold text-white">Saving to Database...</h4></div>
+          <div className="flex-1 flex flex-col items-center justify-center p-12">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-6"></div>
+            <h4 className="text-xl font-bold text-white">Saving to Database...</h4>
+          </div>
         )}
+
         {step === 'complete' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center"><CheckCircle2 className="text-green-500 mb-4" size={64} /><h4 className="text-2xl font-bold text-white mb-2">Import Successful!</h4><button onClick={onComplete} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold">Return to Dashboard</button></div>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+            <CheckCircle2 className="text-green-500 mb-4" size={64} />
+            <h4 className="text-2xl font-bold text-white mb-2">Import Successful!</h4>
+            <p className="text-slate-400 mb-6">Imported {parsedData.length} players</p>
+            <button onClick={onComplete} className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold">Return to Dashboard</button>
+          </div>
         )}
+
         {step === 'error' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center"><AlertCircle className="text-red-500 mb-4" size={64} /><h4 className="text-xl font-bold text-white mb-2">Something went wrong</h4><p className="text-red-400 mb-8">{errorMsg}</p><button onClick={() => setStep('upload')} className="bg-slate-700 text-white px-8 py-3 rounded-xl font-bold">Try Again</button></div>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+            <AlertCircle className="text-red-500 mb-4" size={64} />
+            <h4 className="text-xl font-bold text-white mb-2">Something went wrong</h4>
+            <p className="text-red-400 mb-8">{errorMsg}</p>
+            <div className="flex gap-4">
+              <button onClick={() => setStep('upload')} className="bg-slate-700 text-white px-8 py-3 rounded-xl font-bold">Try Again</button>
+              <button onClick={() => setStep('select')} className="bg-slate-600 text-white px-8 py-3 rounded-xl font-bold">Start Over</button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -991,6 +1246,7 @@ export default function FridayNightFUT() {
   const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null);
   const [filterCheckedIn, setFilterCheckedIn] = useState(false); // New Filter State
   const [quickAddPlayer, setQuickAddPlayer] = useState(''); // New Quick Add State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Delete confirmation modal
 
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
@@ -1148,6 +1404,25 @@ export default function FridayNightFUT() {
     // Update local state for immediate feedback
     setSelectedPlayerForEdit({ ...selectedPlayerForEdit, ratings: ratingsForm });
     setShowRatingsModal(false);
+  };
+
+  const handleDeletePlayer = async () => {
+    if (!selectedPlayerForEdit) return;
+
+
+    try {
+      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
+      await deleteDoc(playerRef);
+      const playerName = selectedPlayerForEdit.name;
+      setSelectedPlayerForEdit(null);
+      setShowDeleteConfirm(false);
+      // Show success message briefly
+      setTimeout(() => alert(`${playerName} has been removed from the squad.`), 100);
+    } catch (err) {
+      console.error("Delete failed", err);
+      alert("Failed to delete player: " + err.message);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const sortedPlayers = useMemo(() => [...players].sort((a, b) => calculateOverall(b) - calculateOverall(a)), [players]);
@@ -1334,11 +1609,17 @@ export default function FridayNightFUT() {
 
                   {/* Admin Upload Controls */}
                   {authStatus.role === 'admin' && (
-                    <div className="bg-slate-800 rounded-xl p-4 text-center mb-4">
+                    <div className="bg-slate-800 rounded-xl p-4 mb-4">
                       <p className="text-slate-400 text-sm mb-4">Tap card photo to upload image.</p>
                       <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files[0]) handleImageUpload(e.target.files[0]); }} />
-                      <button onClick={() => document.getElementById('photo-upload').click()} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+                      <button onClick={() => document.getElementById('photo-upload').click()} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mb-3">
                         <Upload size={18} /> Upload Photo
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-400 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <Trash2 size={18} /> Delete Player
                       </button>
                     </div>
                   )}
@@ -1424,6 +1705,55 @@ export default function FridayNightFUT() {
         )}
 
         {showImporter && authStatus.role === 'admin' && <LegacyImporter onComplete={() => { setShowImporter(false); setView('dashboard'); }} onCancel={() => setShowImporter(false)} />}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && selectedPlayerForEdit && (
+          <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setShowDeleteConfirm(false)}>
+            <div className="bg-slate-800 rounded-2xl max-w-md w-full p-6 border-2 border-red-500/30 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-red-500/20 p-3 rounded-full">
+                  <Trash2 className="text-red-400" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-white">Delete Player?</h3>
+              </div>
+
+              <div className="bg-slate-900/50 rounded-lg p-4 mb-6">
+                <p className="text-slate-300 mb-3">Are you sure you want to permanently delete:</p>
+                <div className="bg-slate-800 rounded p-3 mb-3">
+                  <p className="text-white font-bold text-lg">{selectedPlayerForEdit.name}</p>
+                </div>
+                <div className="text-sm text-slate-400 space-y-1">
+                  <p>\u2022 {selectedPlayerForEdit.gamesPlayed || 0} games played</p>
+                  <p>\u2022 {selectedPlayerForEdit.goals || 0} goals scored</p>
+                  <p>\u2022 {selectedPlayerForEdit.wins || 0} wins</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-6">
+                <p className="text-yellow-400 text-sm font-bold flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  This action cannot be undone
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeletePlayer}
+                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Delete Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <nav className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 pb-safe z-40">
