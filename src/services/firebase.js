@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, collection } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 
 // --- 1. FIREBASE INITIALIZATION ---
 // Hardcoded configuration to ensure immediate availability

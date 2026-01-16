@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Camera, Users, Filter, Trophy } from 'lucide-react';
+import { Camera, Users, Filter } from 'lucide-react';
 import AdminTools from './AdminTools';
 
 export default function SquadView({

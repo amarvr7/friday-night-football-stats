@@ -24,7 +24,6 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
 
     const isTop3 = rank <= 3;
     const textColor = isTop3 ? "text-slate-900" : "text-white";
-    const labelColor = isTop3 ? "text-slate-700" : "text-slate-400";
     const accentColor = isTop3 ? "border-slate-900/20" : "border-slate-500/30";
 
     return (
@@ -74,8 +73,8 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
                     ) : (
                         isTop3 ? (
                             <div className={`drop-shadow-2xl transform hover:scale-110 transition-transform duration-300 ${rank === 1 ? 'text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]' :
-                                    rank === 2 ? 'text-slate-300 drop-shadow-[0_0_15px_rgba(203,213,225,0.5)]' :
-                                        'text-orange-400 drop-shadow-[0_0_15px_rgba(251,146,60,0.5)]'
+                                rank === 2 ? 'text-slate-300 drop-shadow-[0_0_15px_rgba(203,213,225,0.5)]' :
+                                    'text-orange-400 drop-shadow-[0_0_15px_rgba(251,146,60,0.5)]'
                                 }`}>
                                 <Shirt size={120} strokeWidth={1} fill="currentColor" fillOpacity={0.2} />
                             </div>
