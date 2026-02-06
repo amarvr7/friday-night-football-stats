@@ -38,7 +38,7 @@ import PlayerCard from './components/PlayerCard';
 // --- Main Application ---
 export default function FridayNightFUT() {
   const { user, authStatus, login, logout, loading: authLoading } = useAuth();
-  const { players, matches, checkins, upcomingTeams, loading: dataLoading, sortedPlayers, playerStreaks } = useAppModel(user, authStatus.loggedIn);
+  const { players, matches, checkins, upcomingTeams, loading: dataLoading, sortedPlayers, playerStreaks } = useAppModel(user, authStatus.loggedIn, authLoading);
 
   const [view, setView] = useState('dashboard');
   const [showImporter, setShowImporter] = useState(false);

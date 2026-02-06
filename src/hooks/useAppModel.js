@@ -9,7 +9,7 @@ import {
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStreaks } from '../utils/helpers';
 
-export default function useAppModel(user, loggedIn) {
+export default function useAppModel(user, loggedIn, authLoading) {
     const [players, setPlayers] = useState([]);
     const [matches, setMatches] = useState([]);
     const [checkins, setCheckins] = useState([]);
@@ -26,8 +26,13 @@ export default function useAppModel(user, loggedIn) {
             return;
         }
 
-        if (!user) {
+        if (authLoading) {
             setLoading(true);
+            return;
+        }
+
+        if (!user) {
+            setLoading(false);
             return;
         }
 
