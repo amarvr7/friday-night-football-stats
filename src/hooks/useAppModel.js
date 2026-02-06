@@ -17,7 +17,21 @@ export default function useAppModel(user, loggedIn) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user || !loggedIn) return;
+        if (!loggedIn) {
+            setPlayers([]);
+            setMatches([]);
+            setCheckins([]);
+            setUpcomingTeams(null);
+            setLoading(false);
+            return;
+        }
+
+        if (!user) {
+            setLoading(true);
+            return;
+        }
+
+        setLoading(true);
 
         // 1. Players Listener
         const qPlayers = query(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));

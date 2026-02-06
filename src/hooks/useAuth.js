@@ -22,6 +22,7 @@ export default function useAuth() {
                 await signInAnonymously(auth);
             } catch (err) {
                 console.error("Auth error:", err);
+                setLoading(false);
             }
         };
         doAuth();
@@ -29,7 +30,7 @@ export default function useAuth() {
         // Listen for auth changes
         return onAuthStateChanged(auth, (u) => {
             setUser(u);
-            if (u) setLoading(false);
+            setLoading(false);
         });
     }, []);
 
