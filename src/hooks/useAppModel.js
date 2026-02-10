@@ -9,7 +9,7 @@ import {
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStreaks } from '../utils/helpers';
 
-export default function useAppModel(user, loggedIn) {
+export default function useAppModel(user, loggedIn, authLoading) {
     const [players, setPlayers] = useState([]);
     const [matches, setMatches] = useState([]);
     const [checkins, setCheckins] = useState([]);
@@ -17,7 +17,26 @@ export default function useAppModel(user, loggedIn) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user || !loggedIn) return;
+        if (!loggedIn) {
+            setPlayers([]);
+            setMatches([]);
+            setCheckins([]);
+            setUpcomingTeams(null);
+            setLoading(false);
+            return;
+        }
+
+        if (authLoading) {
+            setLoading(true);
+            return;
+        }
+
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
 
         // 1. Players Listener
         const qPlayers = query(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
