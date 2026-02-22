@@ -5,13 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 // --- 1. FIREBASE INITIALIZATION ---
 // Hardcoded configuration to ensure immediate availability
 const firebaseConfig = {
-  apiKey: "AIzaSyCst0JAHFRVNmq_PTDVciV7pwF3MW-6TVY",
-  authDomain: "fridaynightfootball-ba9c1.firebaseapp.com",
-  projectId: "fridaynightfootball-ba9c1",
-  storageBucket: "fridaynightfootball-ba9c1.firebasestorage.app",
-  messagingSenderId: "149039714412",
-  appId: "1:149039714412:web:a6422e99116ef923100849",
-  measurementId: "G-YTVXVQ8328"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "fridaynightfootball-ba9c1.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "fridaynightfootball-ba9c1",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "fridaynightfootball-ba9c1.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "149039714412",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:149039714412:web:a6422e99116ef923100849",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-YTVXVQ8328"
 };
 
 // Singleton initialization pattern to prevent multiple instances
