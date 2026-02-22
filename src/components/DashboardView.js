@@ -33,7 +33,17 @@ export default function DashboardView({
         const data = players.map(p => {
             let dynamicStats;
             if (filterYear === '2026') {
-                dynamicStats = calculateStatsFromMatches(p, filteredMatches);
+                const matchStats = calculateStatsFromMatches(p, filteredMatches);
+                dynamicStats = {
+                    goals: matchStats.goals + (p.season2026?.goals || 0),
+                    wins: matchStats.wins + (p.season2026?.wins || 0),
+                    gamesPlayed: matchStats.gamesPlayed + (p.season2026?.games || 0),
+                    assists: matchStats.assists + (p.season2026?.assists || 0),
+                    cleanSheets: matchStats.cleanSheets + (p.season2026?.cleanSheets || 0),
+                    goalsFor: matchStats.goalsFor + (p.season2026?.goalsFor || 0),
+                    goalsAgainst: matchStats.goalsAgainst + (p.season2026?.goalsAgainst || 0),
+                    motms: (matchStats.motms || 0) + (p.season2026?.motms || 0)
+                };
                 dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
             } else {
                 // Use stored stats for All Time

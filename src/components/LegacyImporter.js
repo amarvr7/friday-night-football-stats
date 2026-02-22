@@ -21,10 +21,10 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
             csvContent += 'Johann,67,43,30.5\n';
             filename = 'alltime_stats_template.csv';
         } else {
-            csvContent = 'Name,Date,Goals,Assists,Team,Result,GoalsFor,GoalsAgainst\n';
-            csvContent += 'Amar,2026-01-03,2,1,Blue,Win,5,2\n';
-            csvContent += 'JT,2026-01-03,1,0,White,Loss,2,5\n';
-            csvContent += 'Johann,2026-01-03,1,2,Blue,Win,5,2\n';
+            csvContent = 'Name,Games,Wins,Goals,Assists,GoalsFor,GoalsAgainst,MOTM\n';
+            csvContent += 'Amar,1,1,2,1,5,2,1\n';
+            csvContent += 'JT,1,0,1,0,2,5,0\n';
+            csvContent += 'Johann,1,1,1,2,5,2,0\n';
             filename = '2026_stats_template.csv';
         }
 
@@ -96,8 +96,8 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
         if (lines.length < 2) throw new Error("File is too short. Need at least a header row and one data row.");
 
         const header = lines[0].toLowerCase();
-        if (!header.includes('name') || !header.includes('date')) {
-            throw new Error("Invalid format. Expected columns: Name, Date, Goals, Assists, Team, Result, GoalsFor, GoalsAgainst");
+        if (!header.includes('name')) {
+            throw new Error("Invalid format. Expected columns: Name, Games, Wins, Goals, Assists, GoalsFor, GoalsAgainst, MOTM");
         }
 
         const matches = [];
@@ -106,27 +106,27 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
             if (!line) continue;
 
             const parts = line.split(',');
-            if (parts.length < 8) continue;
+            if (parts.length < 7) continue;
 
             const name = parts[0]?.trim();
-            const date = parts[1]?.trim();
-            const goals = parseInt(parts[2]) || 0;
-            const assists = parseInt(parts[3]) || 0;
-            const team = parts[4]?.trim().toLowerCase();
-            const result = parts[5]?.trim().toLowerCase();
-            const goalsFor = parseInt(parts[6]) || 0;
-            const goalsAgainst = parseInt(parts[7]) || 0;
+            const games = parseInt(parts[1]) || 0;
+            const wins = parseFloat(parts[2]) || 0;
+            const goals = parseInt(parts[3]) || 0;
+            const assists = parseInt(parts[4]) || 0;
+            const goalsFor = parseInt(parts[5]) || 0;
+            const goalsAgainst = parseInt(parts[6]) || 0;
+            const motm = parts.length > 7 ? parseInt(parts[7]) || 0 : 0;
 
-            if (name && date) {
+            if (name) {
                 matches.push({
                     name,
-                    date,
+                    games,
+                    wins,
                     goals,
                     assists,
-                    team,
-                    result,
                     goalsFor,
-                    goalsAgainst
+                    goalsAgainst,
+                    motm
                 });
             }
         }
@@ -143,18 +143,19 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
                     assists: 0,
                     cleanSheets: 0,
                     goalsFor: 0,
-                    goalsAgainst: 0
+                    goalsAgainst: 0,
+                    motms: 0
                 };
             }
             const p = playerStats[m.name];
-            p.games++;
-            p.goals += m.goals;
-            p.assists += m.assists;
-            p.goalsFor += m.goalsFor;
-            p.goalsAgainst += m.goalsAgainst;
-            if (m.goalsAgainst === 0) p.cleanSheets++;
-            if (m.result === 'win') p.wins += 1;
-            else if (m.result === 'draw' || m.result === 'tie') p.wins += 0.5;
+            p.games += (m.games || 0);
+            p.wins += (m.wins || 0);
+            p.goals += (m.goals || 0);
+            p.assists += (m.assists || 0);
+            p.goalsFor += (m.goalsFor || 0);
+            p.goalsAgainst += (m.goalsAgainst || 0);
+            p.motms += (m.motm || 0);
+            p.cleanSheets += (m.games > 0 && m.goalsAgainst === 0) ? m.games : 0;
         });
 
         return Object.values(playerStats).sort((a, b) => b.games - a.games);
@@ -170,41 +171,46 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
 
             parsedData.forEach(p => {
                 const existing = existingPlayers.find(ep => ep.name.toLowerCase() === p.name.toLowerCase());
-                if (existing) {
-                    const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id);
-                    const updates = {
-                        goals: (existing.goals || 0) + p.goals,
-                        wins: (existing.wins || 0) + p.wins,
-                        gamesPlayed: (existing.gamesPlayed || 0) + p.games,
-                        assists: (existing.assists || 0) + (p.assists || 0)
-                    };
-                    // Add 2026-specific stats if available
-                    if (p.cleanSheets !== undefined) {
-                        updates.cleanSheets = (existing.cleanSheets || 0) + p.cleanSheets;
-                    }
-                    if (p.goalsFor !== undefined) {
-                        updates.goalsFor = (existing.goalsFor || 0) + p.goalsFor;
-                    }
-                    if (p.goalsAgainst !== undefined) {
-                        updates.goalsAgainst = (existing.goalsAgainst || 0) + p.goalsAgainst;
-                    }
-                    batch.update(ref, updates);
-                } else {
-                    const newRef = doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
-                    const newPlayer = {
-                        name: p.name,
-                        goals: p.goals,
-                        wins: p.wins,
-                        gamesPlayed: p.games,
-                        assists: p.assists || 0,
-                        createdAt: serverTimestamp()
-                    };
-                    // Add 2026-specific stats if available
-                    if (p.cleanSheets !== undefined) newPlayer.cleanSheets = p.cleanSheets;
-                    if (p.goalsFor !== undefined) newPlayer.goalsFor = p.goalsFor;
-                    if (p.goalsAgainst !== undefined) newPlayer.goalsAgainst = p.goalsAgainst;
-                    batch.set(newRef, newPlayer);
+
+                const safeGames = p.games || 0;
+                const safeGoals = p.goals || 0;
+                const safeWins = p.wins || 0;
+                const safeAssists = p.assists || 0;
+                const safeCleanSheets = p.cleanSheets || 0;
+                const safeGoalsFor = p.goalsFor || 0;
+                const safeGoalsAgainst = p.goalsAgainst || 0;
+                const safeMotms = p.motms || 0;
+
+                const docRef = existing
+                    ? doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id)
+                    : doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
+
+                const mergedPayload = {
+                    name: existing ? existing.name : p.name
+                };
+
+                if (!existing) {
+                    mergedPayload.createdAt = serverTimestamp();
                 }
+
+                if (importType === 'alltime') {
+                    mergedPayload.goals = (existing?.goals || 0) + safeGoals;
+                    mergedPayload.wins = (existing?.wins || 0) + safeWins;
+                    mergedPayload.gamesPlayed = (existing?.gamesPlayed || 0) + safeGames;
+                } else if (importType === '2026') {
+                    mergedPayload.season2026 = {
+                        goals: (existing?.season2026?.goals || 0) + safeGoals,
+                        wins: (existing?.season2026?.wins || 0) + safeWins,
+                        games: (existing?.season2026?.games || 0) + safeGames,
+                        assists: (existing?.season2026?.assists || 0) + safeAssists,
+                        cleanSheets: (existing?.season2026?.cleanSheets || 0) + safeCleanSheets,
+                        goalsFor: (existing?.season2026?.goalsFor || 0) + safeGoalsFor,
+                        goalsAgainst: (existing?.season2026?.goalsAgainst || 0) + safeGoalsAgainst,
+                        motms: (existing?.season2026?.motms || 0) + safeMotms
+                    };
+                }
+
+                batch.set(docRef, mergedPayload, { merge: true });
             });
             await batch.commit();
             setStep('complete');
@@ -310,6 +316,7 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
                                         <th className="p-2">Goals</th>
                                         <th className="p-2">Wins</th>
                                         {parsedData[0].cleanSheets !== undefined && <th className="p-2">CS</th>}
+                                        {parsedData[0].motms !== undefined && <th className="p-2">MOTM</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -320,6 +327,7 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
                                             <td className="p-2">{row.goals}</td>
                                             <td className="p-2">{row.wins}</td>
                                             {row.cleanSheets !== undefined && <td className="p-2">{row.cleanSheets}</td>}
+                                            {row.motms !== undefined && <td className="p-2">{row.motms}</td>}
                                         </tr>
                                     ))}
                                 </tbody>

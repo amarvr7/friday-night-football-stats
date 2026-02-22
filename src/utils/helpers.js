@@ -14,7 +14,8 @@ export const calculateStatsFromMatches = (player, matches) => {
         cleanSheets: 0,
         goalsFor: 0,
         goalsAgainst: 0,
-        hatTricks: 0
+        hatTricks: 0,
+        motms: 0
     };
 
     matches.forEach(m => {
@@ -29,6 +30,7 @@ export const calculateStatsFromMatches = (player, matches) => {
             stats.goalsAgainst += (pStats.goalsAgainst || 0);
             if ((pStats.goals || 0) >= 3) stats.hatTricks++;
         }
+        if (m.motm === player.id) stats.motms++;
     });
 
     return stats;

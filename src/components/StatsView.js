@@ -22,18 +22,29 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
             let dynamicStats = { goals: 0, wins: 0, gamesPlayed: 0, assists: 0, cleanSheets: 0, goalContrib: 0, goalsFor: 0, goalsAgainst: 0 };
 
             if (filterYear === '2026') {
-                dynamicStats = calculateStatsFromMatches(p, filteredMatches);
+                const matchStats = calculateStatsFromMatches(p, filteredMatches);
+                dynamicStats = {
+                    goals: matchStats.goals + (p.season2026?.goals || 0),
+                    wins: matchStats.wins + (p.season2026?.wins || 0),
+                    gamesPlayed: matchStats.gamesPlayed + (p.season2026?.games || 0),
+                    assists: matchStats.assists + (p.season2026?.assists || 0),
+                    cleanSheets: matchStats.cleanSheets + (p.season2026?.cleanSheets || 0),
+                    goalsFor: matchStats.goalsFor + (p.season2026?.goalsFor || 0),
+                    goalsAgainst: matchStats.goalsAgainst + (p.season2026?.goalsAgainst || 0),
+                    motms: (matchStats.motms || 0) + (p.season2026?.motms || 0)
+                };
                 dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
             } else {
                 dynamicStats = {
                     goals: p.goals || 0,
                     wins: p.wins || 0,
                     gamesPlayed: p.gamesPlayed || 0,
-                    assists: 0,
-                    cleanSheets: 0,
-                    goalContrib: (p.goals || 0),
-                    goalsFor: 0,
-                    goalsAgainst: 0
+                    assists: p.assists || 0,
+                    cleanSheets: p.cleanSheets || 0,
+                    goalContrib: (p.goals || 0) + (p.assists || 0),
+                    goalsFor: p.goalsFor || 0,
+                    goalsAgainst: p.goalsAgainst || 0,
+                    motms: p.motms || 0
                 };
             }
 
@@ -119,6 +130,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                     <SortHeader field="wins" label="Wins" />
                                     <SortHeader field="winRate" label="Win %" />
                                     <SortHeader field="goals" label="G" />
+                                    <SortHeader field="goalsPerGame" label="GPG" />
                                     {filterYear === '2026' && <SortHeader field="assists" label="A" />}
                                     {filterYear === '2026' && <SortHeader field="goalContrib" label="G+A" />}
                                     {filterYear === '2026' && <SortHeader field="cleanSheets" label="CS" />}
@@ -136,6 +148,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                         <td className="p-3 text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
                                         <td className="p-3">{p.winRate.toFixed(1)}%</td>
                                         <td className="p-3 text-white">{p.goals}</td>
+                                        <td className="p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
                                         {filterYear === '2026' && <td className="p-3">{p.assists}</td>}
                                         {filterYear === '2026' && <td className="p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
                                         {filterYear === '2026' && <td className="p-3 text-yellow-400">{p.cleanSheets}</td>}
