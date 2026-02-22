@@ -7,12 +7,17 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
     const overall = calculateOverall(player, seasonStats, streaks?.formScore);
     const { ratings } = player;
 
-    const pace = ratings ? mapRating(ratings.fitness) : (80 + Math.min(statsToUse.gamesPlayed || 0, 19));
-    const dri = ratings ? mapRating(ratings.control) : (Math.min(99, 70 + (statsToUse.wins || 0)));
-    const sho = ratings ? mapRating(ratings.shooting) : (Math.min(99, 60 + (statsToUse.goals || 0) * 2));
-    const def = ratings ? mapRating(ratings.defense) : (Math.min(99, 50 + (statsToUse.gamesPlayed || 0)));
-    const pas = ratings ? mapRating(ratings.control) : 65;
-    const phy = ratings ? mapRating(ratings.defense) : (Math.min(99, 75 + (statsToUse.wins || 0)));
+    // Calculate dynamic stat bumps based on streaks
+    const fitnessBump = (streaks?.playedStreak >= 3) ? 5 : 0;
+    const passingBump = (streaks?.assistStreak || 0) * 2;
+    const shootingBump = (streaks?.goalStreak || 0) * 2;
+    const defenseBump = (streaks?.cleanSheetStreak || 0) * 3;
+
+    // 4 Core Stats
+    const fitness = Math.min(99, (ratings ? mapRating(ratings.fitness) : (80 + Math.min(statsToUse.gamesPlayed || 0, 19))) + fitnessBump);
+    const passing = Math.min(99, (ratings ? mapRating(ratings.control) : 65) + passingBump);
+    const shooting = Math.min(99, (ratings ? mapRating(ratings.shooting) : (Math.min(99, 60 + (statsToUse.goals || 0) * 2))) + shootingBump);
+    const defense = Math.min(99, (ratings ? mapRating(ratings.defense) : (Math.min(99, 50 + (statsToUse.gamesPlayed || 0)))) + defenseBump);
 
     const getCardStyle = () => {
         // FPL-inspired Metallic Gradients
@@ -50,6 +55,12 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
                 <div className="absolute inset-x-0 top-12 bottom-24 z-10 flex items-end justify-center">
                     {/* Streak Badges */}
                     <div className="absolute top-0 right-2 flex flex-col gap-1 items-end z-30">
+                        {/* Hat Trick Badge */}
+                        {(statsToUse.hatTricks > 0) && (
+                            <div className="bg-gradient-to-r from-yellow-300 to-yellow-500 text-slate-900 text-xs font-black px-3 py-1 rounded-l-full flex items-center gap-1.5 shadow-md border border-yellow-200">
+                                ⭐ {statsToUse.hatTricks}
+                            </div>
+                        )}
                         {/* MOTM Badge */}
                         {(statsToUse.motms > 0) && (
                             <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-slate-900 text-xs font-black px-3 py-1 rounded-l-full flex items-center gap-1.5 shadow-md border border-yellow-300">
@@ -59,6 +70,11 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
                         {streaks && streaks.winStreak >= 3 && (
                             <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white text-xs font-bold px-3 py-1 rounded-l-full flex items-center gap-1.5 shadow-md animate-pulse">
                                 <Flame size={14} fill="currentColor" /> {streaks.winStreak}
+                            </div>
+                        )}
+                        {streaks && streaks.lossStreak >= 3 && (
+                            <div className="bg-gradient-to-r from-blue-900 to-slate-800 text-white text-xs font-bold px-3 py-1 rounded-l-full flex items-center gap-1.5 shadow-md">
+                                ⬇️ {streaks.lossStreak}
                             </div>
                         )}
                         {streaks && streaks.goalStreak >= 3 && (
@@ -112,13 +128,23 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
 
                 {/* Stat Grid */}
                 <div className="relative z-20">
-                    <div className={`grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs font-bold leading-tight ${textColor} opacity-90`}>
-                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5"><span className="opacity-70">PAC</span><span>{pace}</span></div>
-                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5"><span className="opacity-70">DRI</span><span>{dri}</span></div>
-                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5"><span className="opacity-70">SHO</span><span>{sho}</span></div>
-                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5"><span className="opacity-70">DEF</span><span>{def}</span></div>
-                        <div className="flex justify-between"><span className="opacity-70">PAS</span><span>{pas}</span></div>
-                        <div className="flex justify-between"><span className="opacity-70">PHY</span><span>{phy}</span></div>
+                    <div className={`grid grid-cols-2 gap-x-2 gap-y-1 text-xs font-bold leading-tight ${textColor} opacity-90`}>
+                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5" title={fitnessBump ? `+${fitnessBump} Played Streak Form Bonus` : ''}>
+                            <span className={`opacity-70 ${fitnessBump > 0 ? 'text-green-500 font-extrabold' : ''}`}>FIT</span>
+                            <span className={fitnessBump > 0 ? 'text-green-500 font-black' : ''}>{fitness}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-dashed border-current/20 pb-0.5" title={passingBump ? `+${passingBump} Assist Streak Form Bonus` : ''}>
+                            <span className={`opacity-70 ${passingBump > 0 ? 'text-green-500 font-extrabold' : ''}`}>PAS</span>
+                            <span className={passingBump > 0 ? 'text-green-500 font-black' : ''}>{passing}</span>
+                        </div>
+                        <div className="flex justify-between" title={shootingBump ? `+${shootingBump} Goal Streak Form Bonus` : ''}>
+                            <span className={`opacity-70 ${shootingBump > 0 ? 'text-green-500 font-extrabold' : ''}`}>SHO</span>
+                            <span className={shootingBump > 0 ? 'text-green-500 font-black' : ''}>{shooting}</span>
+                        </div>
+                        <div className="flex justify-between" title={defenseBump ? `+${defenseBump} Clean Sheet Streak Form Bonus` : ''}>
+                            <span className={`opacity-70 ${defenseBump > 0 ? 'text-green-500 font-extrabold' : ''}`}>DEF</span>
+                            <span className={defenseBump > 0 ? 'text-green-500 font-black' : ''}>{defense}</span>
+                        </div>
                     </div>
                 </div>
 

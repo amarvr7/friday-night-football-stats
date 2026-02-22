@@ -13,7 +13,8 @@ export const calculateStatsFromMatches = (player, matches) => {
         assists: 0,
         cleanSheets: 0,
         goalsFor: 0,
-        goalsAgainst: 0
+        goalsAgainst: 0,
+        hatTricks: 0
     };
 
     matches.forEach(m => {
@@ -26,6 +27,7 @@ export const calculateStatsFromMatches = (player, matches) => {
             if (pStats.cleanSheet) stats.cleanSheets++;
             stats.goalsFor += (pStats.goalsFor || 0);
             stats.goalsAgainst += (pStats.goalsAgainst || 0);
+            if ((pStats.goals || 0) >= 3) stats.hatTricks++;
         }
     });
 
@@ -93,9 +95,24 @@ export const calculateStreaks = (player, matches) => {
 
     let winStreak = 0;
     let goalStreak = 0;
+    let assistStreak = 0;
+    let cleanSheetStreak = 0;
+    let lossStreak = 0;
+    let playedStreak = 0;
     const last5 = [];
 
     let formScore = 0;
+
+    // Played Streak is how many sequential matches player played in prior to their last unplayed
+    // Let's iterate over sortedMatches (all matches) to find played streak
+    for (let i = 0; i < sortedMatches.length; i++) {
+        const m = sortedMatches[i];
+        if (m.stats && m.stats[player.id]) {
+            playedStreak++;
+        } else {
+            break; // Stop at first non-played match
+        }
+    }
 
     for (let i = 0; i < playerMatches.length; i++) {
         const m = playerMatches[i];
@@ -106,9 +123,24 @@ export const calculateStreaks = (player, matches) => {
             if (i === winStreak) winStreak++;
         }
 
+        // Loss Streak
+        if (stats.win === 0) {
+            if (i === lossStreak) lossStreak++;
+        }
+
         // Goal Streak
-        if (stats.goals > 0) {
+        if ((stats.goals || 0) > 0) {
             if (i === goalStreak) goalStreak++;
+        }
+
+        // Assist Streak
+        if ((stats.assists || 0) > 0) {
+            if (i === assistStreak) assistStreak++;
+        }
+
+        // Clean Sheet Streak
+        if (stats.cleanSheet) {
+            if (i === cleanSheetStreak) cleanSheetStreak++;
         }
 
         // Last 5 Games & Form Score
@@ -129,5 +161,5 @@ export const calculateStreaks = (player, matches) => {
         }
     }
 
-    return { winStreak, goalStreak, last5, formScore: Math.min(formScore, 20) }; // Cap at 20
+    return { winStreak, lossStreak, goalStreak, assistStreak, cleanSheetStreak, playedStreak, last5, formScore: Math.min(formScore, 20) }; // Cap at 20
 };

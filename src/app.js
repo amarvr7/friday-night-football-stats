@@ -31,6 +31,7 @@ import DashboardView from './components/DashboardView';
 import SquadView from './components/SquadView';
 import StatsView from './components/StatsView';
 import MatchLogger from './components/MatchLogger';
+import LiveMatchTracker from './components/LiveMatchTracker';
 import LegacyImporter from './components/LegacyImporter';
 import TeamGenerator from './components/TeamGenerator';
 import PlayerCard from './components/PlayerCard';
@@ -177,6 +178,15 @@ export default function FridayNightFUT() {
         />
       )}
 
+      {view === 'live-match' && authStatus.role === 'admin' && (
+        <LiveMatchTracker
+          players={players}
+          onSave={handleSaveMatch}
+          onCancel={() => { setView('dashboard'); setMatchSetup(null); }}
+          initialTeams={matchSetup}
+        />
+      )}
+
       {view === 'add-match' && authStatus.role === 'admin' && (
         <MatchLogger
           players={players}
@@ -189,7 +199,7 @@ export default function FridayNightFUT() {
       {view === 'teams' && authStatus.role === 'admin' && (
         <TeamGenerator
           players={players}
-          onLogMatch={(teams) => { setMatchSetup(teams); setView('add-match'); }}
+          onLogMatch={(teams, matchType = 'add-match') => { setMatchSetup(teams); setView(matchType); }}
         />
       )}
 

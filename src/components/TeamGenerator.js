@@ -116,11 +116,14 @@ const TeamGenerator = ({ players, onLogMatch }) => {
                     </button>
                     {teamBlue.length > 0 && (
                         <>
-                            <button onClick={handlePublish} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
+                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite }, 'live-match')} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
+                                <Activity size={16} /> Start Live Match
+                            </button>
+                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg hidden md:flex">
                                 <Send size={16} /> Publish
                             </button>
-                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite })} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                                <Activity size={16} /> Log Match
+                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite })} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex justify-center items-center gap-2 shadow-lg hidden md:flex">
+                                <Activity size={16} /> Log Historc Match
                             </button>
                         </>
                     )}

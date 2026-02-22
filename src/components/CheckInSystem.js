@@ -8,6 +8,7 @@ const CheckInSystem = ({ players, currentUserRole }) => {
     const [settings, setSettings] = useState({ unlockTime: null });
     const [selectedPlayer, setSelectedPlayer] = useState('');
     const [unlockTimeInput, setUnlockTimeInput] = useState('');
+    const [newPlayerName, setNewPlayerName] = useState('');
 
     useEffect(() => {
         // Order by timestamp ensures Waitlist logic works automatically (First come first serve)
@@ -25,11 +26,33 @@ const CheckInSystem = ({ players, currentUserRole }) => {
     const handleCheckIn = async () => {
         if (!selectedPlayer) return;
         try {
-            await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS), {
-                playerId: selectedPlayer,
-                name: players.find(p => p.id === selectedPlayer)?.name || 'Unknown',
-                timestamp: serverTimestamp()
-            });
+            if (selectedPlayer === 'NEW') {
+                if (!newPlayerName.trim()) return;
+
+                // Add to PLAYERS collection first
+                const playerRef = await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS), {
+                    name: newPlayerName.trim(),
+                    goals: 0,
+                    assists: 0,
+                    wins: 0,
+                    gamesPlayed: 0,
+                    createdAt: serverTimestamp()
+                });
+
+                // Add to CHECKINS
+                await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS), {
+                    playerId: playerRef.id,
+                    name: newPlayerName.trim(),
+                    timestamp: serverTimestamp()
+                });
+                setNewPlayerName('');
+            } else {
+                await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS), {
+                    playerId: selectedPlayer,
+                    name: players.find(p => p.id === selectedPlayer)?.name || 'Unknown',
+                    timestamp: serverTimestamp()
+                });
+            }
             setSelectedPlayer('');
         } catch (err) { console.error("Checkin failed", err); }
     };
@@ -96,20 +119,33 @@ const CheckInSystem = ({ players, currentUserRole }) => {
             )}
 
             {canCheckIn ? (
-                <div className="flex gap-2 mb-6">
-                    <select
-                        className="flex-1 bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
-                        value={selectedPlayer}
-                        onChange={(e) => setSelectedPlayer(e.target.value)}
-                    >
-                        <option value="">Select Your Name...</option>
-                        {players
-                            .filter(p => !checkins.some(c => c.playerId === p.id))
-                            .sort((a, b) => a.name.localeCompare(b.name))
-                            .map(p => <option key={p.id} value={p.id}>{p.name}</option>)
-                        }
-                    </select>
-                    <button onClick={handleCheckIn} disabled={!selectedPlayer} className="bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 mb-6 items-start">
+                    <div className="flex-1 w-full space-y-2">
+                        <select
+                            className="w-full bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
+                            value={selectedPlayer}
+                            onChange={(e) => setSelectedPlayer(e.target.value)}
+                        >
+                            <option value="">Select Your Name...</option>
+                            {players
+                                .filter(p => !checkins.some(c => c.playerId === p.id))
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                            }
+                            <option value="NEW" className="text-green-400 font-bold">+ I'm not listed (Add Name)</option>
+                        </select>
+                        {selectedPlayer === 'NEW' && (
+                            <input
+                                type="text"
+                                placeholder="Enter your full name..."
+                                className="w-full bg-slate-800 text-white p-3 rounded-lg border border-green-500/50 focus:border-green-500 outline-none"
+                                value={newPlayerName}
+                                onChange={(e) => setNewPlayerName(e.target.value)}
+                                autoFocus
+                            />
+                        )}
+                    </div>
+                    <button onClick={handleCheckIn} disabled={!selectedPlayer || (selectedPlayer === 'NEW' && !newPlayerName.trim())} className="w-full sm:w-auto bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 h-[50px]">
                         <UserCheck size={18} /> I'm In
                     </button>
                 </div>

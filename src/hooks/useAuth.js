@@ -29,7 +29,7 @@ export default function useAuth() {
         // Listen for auth changes
         return onAuthStateChanged(auth, (u) => {
             setUser(u);
-            if (u) setLoading(false);
+            setLoading(false);
         });
     }, []);
 

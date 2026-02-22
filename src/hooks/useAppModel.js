@@ -25,6 +25,9 @@ export default function useAppModel(user, loggedIn) {
             setPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             // Consider granular loading states if needed, for now we just unset loading at the end of the chain or keep it simple
             setLoading(false);
+        }, (error) => {
+            console.error("Firebase permission error on players:", error);
+            setLoading(false);
         });
 
         // 2. Matches Listener
@@ -33,19 +36,19 @@ export default function useAppModel(user, loggedIn) {
             const mList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             mList.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
             setMatches(mList);
-        });
+        }, (error) => console.error("Firebase error on matches:", error));
 
         // 3. Checkins Listener
         const qCheckins = query(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS), orderBy("timestamp", "asc"));
         const unsubCheckins = onSnapshot(qCheckins, (snapshot) => {
             setCheckins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
+        }, (error) => console.error("Firebase error on checkins:", error));
 
         // 4. Upcoming Teams Listener
         const unsubUpcoming = onSnapshot(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'currentTeams'), (doc) => {
             if (doc.exists()) setUpcomingTeams(doc.data());
             else setUpcomingTeams(null);
-        });
+        }, (error) => console.error("Firebase error on upcoming teams:", error));
 
         return () => {
             unsubPlayers();
