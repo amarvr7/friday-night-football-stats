@@ -44,23 +44,43 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
         const avg = (fitness * 1.0 + control * 1.2 + shooting * 1.0 + defense * 0.8) / 4;
         baseRating = mapRating(avg);
     } else {
-        const goals = statsOverride ? statsOverride.goals : player.goals;
-        const wins = statsOverride ? statsOverride.wins : player.wins;
-        const gamesPlayed = statsOverride ? statsOverride.gamesPlayed : player.gamesPlayed;
+        const goals = statsOverride ? statsOverride.goals : (player.goals || 0);
+        const wins = statsOverride ? statsOverride.wins : (player.wins || 0);
+        const gamesPlayed = statsOverride ? statsOverride.gamesPlayed : (player.gamesPlayed || 0);
 
-        const assists = statsOverride ? (statsOverride.assists || 0) : 0;
-        const cleanSheets = statsOverride ? (statsOverride.cleanSheets || 0) : 0;
+        const assists = statsOverride ? (statsOverride.assists || 0) : (player.assists || 0);
+        const cleanSheets = statsOverride ? (statsOverride.cleanSheets || 0) : (player.cleanSheets || 0);
         const motms = statsOverride ? (statsOverride.motms || 0) : (player.motms || 0);
 
-        if (!gamesPlayed || gamesPlayed === 0) return 60;
+        if (!gamesPlayed || gamesPlayed === 0) return 65;
 
+        // Base rating starts at 65
+        let rating = 65;
+
+        // 1. Accumulation Bonus (Volume/Elo)
+        const gamesBonus = Math.min(gamesPlayed * 0.1, 5);
+        const winsBonus = Math.min(wins * 0.3, 10);
+        const motmsBonus = Math.min(motms * 0.5, 5);
+
+        rating += gamesBonus + winsBonus + motmsBonus;
+
+        // 2. Performance Bonus (Averages)
         const goalsPerGame = goals / gamesPlayed;
         const assistsPerGame = assists / gamesPlayed;
         const csPerGame = cleanSheets / gamesPlayed;
-        const winRate = wins / gamesPlayed;
-        const motmPerGame = motms / gamesPlayed;
 
-        let rating = 60 + (goalsPerGame * 15) + (assistsPerGame * 10) + (csPerGame * 10) + (winRate * 20) + (motmPerGame * 30);
+        const goalsBonus = Math.min(goalsPerGame * 5, 10);
+        const assistsBonus = Math.min(assistsPerGame * 5, 5);
+        const csBonus = Math.min(csPerGame * 15, 10);
+
+        rating += goalsBonus + assistsBonus + csBonus;
+
+        // 3. The "Prove It" Phase Threshold
+        if (gamesPlayed < 3) {
+            // Cap movement to +/- 3 points from base (65)
+            rating = Math.max(62, Math.min(rating, 68));
+        }
+
         baseRating = Math.round(rating);
     }
 
