@@ -157,6 +157,17 @@ export default function FridayNightFUT() {
     }
   };
 
+  const handleStartLiveMatch = () => {
+    if (upcomingTeams && upcomingTeams.blue && upcomingTeams.white) {
+      const bluePlayers = upcomingTeams.blue.map(id => players.find(p => p.id === id)).filter(Boolean);
+      const whitePlayers = upcomingTeams.white.map(id => players.find(p => p.id === id)).filter(Boolean);
+      setMatchSetup({ blue: bluePlayers, white: whitePlayers });
+      setView('live-match');
+    } else {
+      setView('add-match');
+    }
+  };
+
   if (!authStatus.loggedIn) return <LoginScreen onLogin={login} />;
 
   if (authLoading || dataLoading) {
@@ -164,7 +175,7 @@ export default function FridayNightFUT() {
   }
 
   return (
-    <Layout view={view} setView={setView} authStatus={authStatus} handleLogout={logout}>
+    <Layout view={view} setView={setView} authStatus={authStatus} handleLogout={logout} hasUpcomingTeams={!!upcomingTeams} handleStartLiveMatch={handleStartLiveMatch}>
       {view === 'dashboard' && (
         <DashboardView
           players={players}

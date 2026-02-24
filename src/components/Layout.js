@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trophy, Plus, Lock, BarChart2, Users, Shirt, Activity } from 'lucide-react';
 
-export default function Layout({ children, view, setView, authStatus, handleLogout }) {
+export default function Layout({ children, view, setView, authStatus, handleLogout, hasUpcomingTeams, handleStartLiveMatch }) {
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
             {/* Header */}
@@ -21,13 +21,18 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
                         )}
                         {authStatus.role === 'admin' && (
                             <button
-                                onClick={() => setView('add-match')}
-                                className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1"
+                                onClick={hasUpcomingTeams ? handleStartLiveMatch : () => setView('add-match')}
+                                title={hasUpcomingTeams ? "Start Live Match" : "Log Historic Match"}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition-all shadow-lg ${hasUpcomingTeams
+                                    ? 'bg-green-500 hover:bg-green-400 text-white animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(34,197,94,0.5)]'
+                                    : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                                    }`}
                             >
-                                <Plus size={16} /> Match
+                                {hasUpcomingTeams ? <Activity size={16} /> : <Plus size={16} />}
+                                {hasUpcomingTeams ? 'Live Match' : 'Match'}
                             </button>
                         )}
-                        <button onClick={handleLogout} className="text-slate-500 hover:text-white">
+                        <button onClick={handleLogout} className="text-slate-500 hover:text-white ml-2">
                             <Lock size={16} />
                         </button>
                     </div>
@@ -73,8 +78,11 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
                                 <span className="text-[10px] font-bold mt-1 uppercase">Sheet</span>
                             </button>
                             <button
-                                onClick={() => setView('add-match')}
-                                className={`flex flex-col items-center py-3 px-6 ${view === 'add-match' ? 'text-green-400' : 'text-slate-500'}`}
+                                onClick={hasUpcomingTeams ? handleStartLiveMatch : () => setView('add-match')}
+                                className={`flex flex-col items-center py-3 px-6 transition-colors ${view === 'add-match' || view === 'live-match'
+                                        ? 'text-green-400'
+                                        : (hasUpcomingTeams ? 'text-green-500 animate-pulse' : 'text-slate-500 hover:text-slate-300')
+                                    }`}
                             >
                                 <Activity size={20} />
                                 <span className="text-[10px] font-bold mt-1 uppercase">Log</span>
