@@ -52,10 +52,10 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
         const cleanSheets = statsOverride ? (statsOverride.cleanSheets || 0) : (player.cleanSheets || 0);
         const motms = statsOverride ? (statsOverride.motms || 0) : (player.motms || 0);
 
-        if (!gamesPlayed || gamesPlayed === 0) return 65;
+        if (!gamesPlayed || gamesPlayed === 0) return 60;
 
-        // Base rating starts at 65
-        let rating = 65;
+        // Base rating starts at 60 to allow a wider bell curve for lower-impact players
+        let rating = 60;
 
         // 1. Accumulation Bonus (Volume/Elo)
         const gamesBonus = Math.min(gamesPlayed * 0.1, 5);
@@ -75,10 +75,11 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
         const csPerGame = cleanSheets / adjustedGames;
         const winRate = wins / adjustedGames;
 
-        const goalsBonus = Math.min(goalsPerGame * 5, 10);
-        const assistsBonus = Math.min(assistsPerGame * 5, 5);
-        const csBonus = Math.min(csPerGame * 10, 10);
-        const winBonus = winRate * 10;
+        // Higher multi-caps to compensate for lower baseline so elite veterans still hit 99
+        const goalsBonus = Math.min(goalsPerGame * 7, 12);
+        const assistsBonus = Math.min(assistsPerGame * 5, 8);
+        const csBonus = Math.min(csPerGame * 12, 12);
+        const winBonus = winRate * 12;
 
         rating += goalsBonus + assistsBonus + csBonus + winBonus;
 
