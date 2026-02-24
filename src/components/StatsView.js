@@ -53,7 +53,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                 ...dynamicStats,
                 winRate: dynamicStats.gamesPlayed > 0 ? (dynamicStats.wins / dynamicStats.gamesPlayed) * 100 : 0,
                 goalsPerGame: dynamicStats.gamesPlayed > 0 ? dynamicStats.goals / dynamicStats.gamesPlayed : 0,
-                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore)
+                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore, filterYear === '2026')
             };
         }).filter(p => filterYear === 'all' || p.gamesPlayed > 0);
     }, [players, filteredMatches, filterYear, playerStreaks]);

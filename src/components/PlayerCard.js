@@ -2,9 +2,11 @@ import React from 'react';
 import { Users, Camera, Sliders, Flame, Target, Trophy, Shirt } from 'lucide-react';
 import { calculateOverall, mapRating } from '../utils/helpers';
 
-const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seasonStats, streaks }) => {
+const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seasonStats, streaks, forceDynamic = false }) => {
     const statsToUse = seasonStats || player;
-    const overall = calculateOverall(player, seasonStats, streaks?.formScore);
+
+    // Use pre-computed overall if available, otherwise recalculate
+    const overall = seasonStats?.overall || calculateOverall(player, seasonStats, streaks?.formScore, forceDynamic);
     const { ratings } = player;
 
     // Calculate dynamic stat bumps based on streaks

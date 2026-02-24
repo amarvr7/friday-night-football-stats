@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Shirt, Shuffle, RefreshCw, Send, Activity } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
-import { calculateOverall } from '../utils/helpers';
+import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
 
-const TeamGenerator = ({ players, onLogMatch }) => {
+const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch }) => {
     const [confirmedPlayers, setConfirmedPlayers] = useState([]);
     const [teamBlue, setTeamBlue] = useState([]);
     const [teamWhite, setTeamWhite] = useState([]);
@@ -24,14 +24,39 @@ const TeamGenerator = ({ players, onLogMatch }) => {
         return () => unsub();
     }, [players]);
 
+    // Isolated 2026 Matches
+    const filteredMatches = useMemo(() => {
+        if (!matches) return [];
+        return matches.filter(m => {
+            if (!m.date) return false;
+            const date = new Date(m.date.seconds * 1000);
+            return date.getFullYear() === 2026;
+        });
+    }, [matches]);
+
+    // Helper to calculate a player's dynamic 2026 rating
+    const getDynamicRating = (player) => {
+        const matchStats = calculateStatsFromMatches(player, filteredMatches);
+        const dynamicStats = {
+            goals: matchStats.goals + (player.season2026?.goals || 0),
+            wins: matchStats.wins + (player.season2026?.wins || 0),
+            gamesPlayed: matchStats.gamesPlayed + (player.season2026?.games || 0),
+            assists: matchStats.assists + (player.season2026?.assists || 0),
+            cleanSheets: matchStats.cleanSheets + (player.season2026?.cleanSheets || 0),
+            motms: (matchStats.motms || 0) + (player.season2026?.motms || 0)
+        };
+        const formScore = playerStreaks?.[player.id]?.formScore;
+        return calculateOverall(player, dynamicStats, formScore, true); // forceDynamic = true
+    };
+
     const generateTeams = () => {
         if (confirmedPlayers.length < 2) {
             alert("Not enough players to generate teams!");
             return;
         }
 
-        // 1. Sort by Rating (Best to Worst)
-        const sorted = [...confirmedPlayers].sort((a, b) => calculateOverall(b) - calculateOverall(a));
+        // 1. Sort by Rating (Best to Worst) using Dynamic 2026 Stats
+        const sorted = [...confirmedPlayers].sort((a, b) => getDynamicRating(b) - getDynamicRating(a));
 
         const blue = [];
         const white = [];
@@ -81,7 +106,7 @@ const TeamGenerator = ({ players, onLogMatch }) => {
                 {teamList.map(p => (
                     <div key={p.id} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
                         <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-yellow-500 w-6 text-center">{calculateOverall(p)}</span>
+                            <span className="font-bold text-sm text-yellow-500 w-6 text-center">{getDynamicRating(p)}</span>
                             <span className="text-white text-sm truncate max-w-[100px]">{p.name}</span>
                         </div>
                         <button
@@ -97,7 +122,7 @@ const TeamGenerator = ({ players, onLogMatch }) => {
                 <span className="text-slate-500 text-xs uppercase">Avg Rating</span>
                 <div className="text-xl font-mono font-bold text-white">
                     {teamList.length > 0
-                        ? Math.round(teamList.reduce((acc, p) => acc + calculateOverall(p), 0) / teamList.length)
+                        ? Math.round(teamList.reduce((acc, p) => acc + getDynamicRating(p), 0) / teamList.length)
                         : 0}
                 </div>
             </div>

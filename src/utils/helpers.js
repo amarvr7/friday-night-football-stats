@@ -36,10 +36,11 @@ export const calculateStatsFromMatches = (player, matches) => {
     return stats;
 };
 
-export const calculateOverall = (player, statsOverride = null, formBonus = 0) => {
+export const calculateOverall = (player, statsOverride = null, formBonus = 0, forceDynamic = false) => {
     let baseRating;
 
-    if (player.ratings) {
+    // Only use manual ratings if we aren't forcing dynamic stat calculation
+    if (player.ratings && !forceDynamic) {
         const { fitness, control, shooting, defense } = player.ratings;
         const avg = (fitness * 1.0 + control * 1.2 + shooting * 1.0 + defense * 0.8) / 4;
         baseRating = mapRating(avg);

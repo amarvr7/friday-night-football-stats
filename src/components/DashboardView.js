@@ -62,7 +62,7 @@ export default function DashboardView({
                 ...p,
                 ...dynamicStats,
                 // Recalculate OVR based on these stats
-                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore)
+                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore, filterYear === '2026')
             };
         });
 
@@ -150,16 +150,16 @@ export default function DashboardView({
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8">
                     <div className="md:order-2 transform md:-translate-y-4 z-10">
-                        {leaders[0] && <PlayerCard player={leaders[0]} rank={1} streaks={playerStreaks[leaders[0].id]} seasonStats={leaders[0]} />}
+                        {leaders[0] && <PlayerCard player={leaders[0]} rank={1} streaks={playerStreaks[leaders[0].id]} seasonStats={leaders[0]} forceDynamic={filterYear === '2026'} />}
                     </div>
                     <div className="md:order-1 transform md:translate-y-4">
-                        {leaders[1] && <PlayerCard player={leaders[1]} rank={2} streaks={playerStreaks[leaders[1].id]} seasonStats={leaders[1]} />}
+                        {leaders[1] && <PlayerCard player={leaders[1]} rank={2} streaks={playerStreaks[leaders[1].id]} seasonStats={leaders[1]} forceDynamic={filterYear === '2026'} />}
                     </div>
                     <div className="hidden md:block md:order-3 transform md:translate-y-8">
-                        {leaders[2] && <PlayerCard player={leaders[2]} rank={3} streaks={playerStreaks[leaders[2].id]} seasonStats={leaders[2]} />}
+                        {leaders[2] && <PlayerCard player={leaders[2]} rank={3} streaks={playerStreaks[leaders[2].id]} seasonStats={leaders[2]} forceDynamic={filterYear === '2026'} />}
                     </div>
                     <div className="block md:hidden col-span-2 sm:col-span-1 mx-auto w-1/2 sm:w-full">
-                        {leaders[2] && <PlayerCard player={leaders[2]} rank={3} streaks={playerStreaks[leaders[2].id]} seasonStats={leaders[2]} />}
+                        {leaders[2] && <PlayerCard player={leaders[2]} rank={3} streaks={playerStreaks[leaders[2].id]} seasonStats={leaders[2]} forceDynamic={filterYear === '2026'} />}
                     </div>
                 </div>
             </section>

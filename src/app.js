@@ -199,6 +199,8 @@ export default function FridayNightFUT() {
       {view === 'teams' && authStatus.role === 'admin' && (
         <TeamGenerator
           players={players}
+          matches={matches}
+          playerStreaks={playerStreaks}
           onLogMatch={(teams, matchType = 'add-match') => { setMatchSetup(teams); setView(matchType); }}
         />
       )}
