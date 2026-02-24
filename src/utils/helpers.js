@@ -59,7 +59,7 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
 
         // 1. Accumulation Bonus (Volume/Elo)
         const gamesBonus = Math.min(gamesPlayed * 0.1, 5);
-        const winsBonus = Math.min(wins * 0.3, 10);
+        const winsBonus = Math.min(wins * 0.2, 5);
         const motmsBonus = Math.min(motms * 0.5, 5);
 
         rating += gamesBonus + winsBonus + motmsBonus;
@@ -68,17 +68,22 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
         const goalsPerGame = goals / gamesPlayed;
         const assistsPerGame = assists / gamesPlayed;
         const csPerGame = cleanSheets / gamesPlayed;
+        const winRate = wins / gamesPlayed;
 
         const goalsBonus = Math.min(goalsPerGame * 5, 10);
         const assistsBonus = Math.min(assistsPerGame * 5, 5);
-        const csBonus = Math.min(csPerGame * 15, 10);
+        const csBonus = Math.min(csPerGame * 10, 10);
+        const winBonus = winRate * 10;
 
-        rating += goalsBonus + assistsBonus + csBonus;
+        rating += goalsBonus + assistsBonus + csBonus + winBonus;
 
-        // 3. The "Prove It" Phase Threshold
-        if (gamesPlayed < 3) {
-            // Cap movement to +/- 3 points from base (65)
-            rating = Math.max(62, Math.min(rating, 68));
+        // 3. Graduated "Prove It" Phase
+        if (gamesPlayed < 5) {
+            // Gradually release the training wheels over the first 5 games
+            // 1 game = 20% of their earned bonus, 3 games = 60%, 5+ games = 100%
+            const diff = rating - 65;
+            const dampenFactor = gamesPlayed / 5;
+            rating = 65 + (diff * dampenFactor);
         }
 
         baseRating = Math.round(rating);
