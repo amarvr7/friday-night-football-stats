@@ -64,11 +64,16 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
 
         rating += gamesBonus + winsBonus + motmsBonus;
 
-        // 2. Performance Bonus (Averages)
-        const goalsPerGame = goals / gamesPlayed;
-        const assistsPerGame = assists / gamesPlayed;
-        const csPerGame = cleanSheets / gamesPlayed;
-        const winRate = wins / gamesPlayed;
+        // 2. Performance Bonus via Bayesian Smoothing
+        // Add 2 dummy games of 0 stats if player has fewer than 5 games.
+        // This stops 1-game wonders from getting 99 ratings without reading all-time history.
+        const smoothingGames = gamesPlayed < 5 ? 2 : 0;
+        const adjustedGames = gamesPlayed + smoothingGames;
+
+        const goalsPerGame = goals / adjustedGames;
+        const assistsPerGame = assists / adjustedGames;
+        const csPerGame = cleanSheets / adjustedGames;
+        const winRate = wins / adjustedGames;
 
         const goalsBonus = Math.min(goalsPerGame * 5, 10);
         const assistsBonus = Math.min(assistsPerGame * 5, 5);
@@ -76,15 +81,6 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0) =>
         const winBonus = winRate * 10;
 
         rating += goalsBonus + assistsBonus + csBonus + winBonus;
-
-        // 3. Graduated "Prove It" Phase
-        if (gamesPlayed < 5) {
-            // Gradually release the training wheels over the first 5 games
-            // 1 game = 20% of their earned bonus, 3 games = 60%, 5+ games = 100%
-            const diff = rating - 65;
-            const dampenFactor = gamesPlayed / 5;
-            rating = 65 + (diff * dampenFactor);
-        }
 
         baseRating = Math.round(rating);
     }
