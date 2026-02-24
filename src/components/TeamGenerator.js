@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shirt, Shuffle, RefreshCw, Send, Activity } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { Shirt, Shuffle, RefreshCw, Send, Activity, Trash2 } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
 
@@ -99,6 +99,19 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch }) => {
         }
     };
 
+    const handleClearTeams = async () => {
+        if (!window.confirm("Are you sure you want to clear the published teams from the dashboard?")) return;
+        try {
+            await deleteDoc(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'currentTeams'));
+            alert("Published teams cleared!");
+            setTeamBlue([]);
+            setTeamWhite([]);
+        } catch (err) {
+            console.error("Failed to clear teams", err);
+            alert("Failed to clear teams: " + err.message);
+        }
+    };
+
     const TeamColumn = ({ title, colorClass, teamList, setSelf, setOther }) => (
         <div className={`flex-1 rounded-xl border ${colorClass} bg-slate-900/50 p-4`}>
             <h3 className={`text-lg font-bold mb-4 uppercase text-center border-b pb-2 ${colorClass.replace('border', 'text')}`}>{title}</h3>
@@ -131,24 +144,26 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch }) => {
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-start md:items-center flex-col md:flex-row mb-6 gap-4">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Shirt className="text-purple-400" /> Team Sheet
                 </h2>
-                <div className="flex gap-2">
-                    <button onClick={generateTeams} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={generateTeams} className="bg-purple-600 hover:bg-purple-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
                         <Shuffle size={16} /> AI Generate
                     </button>
+
+                    <button onClick={handleClearTeams} title="Unpublish from Dashboard" className="bg-red-600/20 text-red-400 border border-red-500/50 hover:bg-red-600 hover:text-white px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all">
+                        <Trash2 size={16} /> Clear Teams
+                    </button>
+
                     {teamBlue.length > 0 && (
                         <>
-                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite }, 'live-match')} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
+                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite }, 'live-match')} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
                                 <Activity size={16} /> Start Live Match
                             </button>
-                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg hidden md:flex">
+                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg hidden md:flex">
                                 <Send size={16} /> Publish
-                            </button>
-                            <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite })} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex justify-center items-center gap-2 shadow-lg hidden md:flex">
-                                <Activity size={16} /> Log Historc Match
                             </button>
                         </>
                     )}
