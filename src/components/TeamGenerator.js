@@ -37,7 +37,7 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                 }
             }
         }
-    }, [upcomingTeams, players]);
+    }, [upcomingTeams, players, teamBlue.length, teamWhite.length]);
 
     // Isolated 2026 Matches
     const filteredMatches = useMemo(() => {
