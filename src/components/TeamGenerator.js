@@ -177,7 +177,7 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                             <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite }, 'live-match')} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
                                 <Activity size={16} /> Start Live Match
                             </button>
-                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg hidden md:flex">
+                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
                                 <Send size={16} /> Publish
                             </button>
                         </>
