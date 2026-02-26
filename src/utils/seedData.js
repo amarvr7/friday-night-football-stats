@@ -12,6 +12,7 @@ const SEED_DATA = [
     { name: "G", gamesPlayed: 26, goals: 28, wins: 13 },
     { name: "Zoran", gamesPlayed: 22, goals: 3, wins: 11 },
     { name: "Travers", gamesPlayed: 20, goals: 1, wins: 10 },
+    { name: "Agge", gamesPlayed: 20, goals: 15, wins: 12 },
     { name: "Kristof", gamesPlayed: 16, goals: 15, wins: 8 },
     { name: "Josh", gamesPlayed: 14, goals: 14, wins: 7 },
     { name: "Greg", gamesPlayed: 14, goals: 4, wins: 4.5 },

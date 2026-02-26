@@ -76,7 +76,10 @@ export default function FridayNightFUT() {
           assists: (player.assists || 0) + stats.assists,
           wins: (player.wins || 0) + (stats.win ? 1 : 0),
           gamesPlayed: (player.gamesPlayed || 0) + 1,
-          motms: (player.motms || 0) + (isMotm ? 1 : 0)
+          motms: (player.motms || 0) + (isMotm ? 1 : 0),
+          cleanSheets: (player.cleanSheets || 0) + (stats.cleanSheet ? 1 : 0),
+          goalsFor: (player.goalsFor || 0) + (stats.goalsFor || 0),
+          goalsAgainst: (player.goalsAgainst || 0) + (stats.goalsAgainst || 0)
         });
       }
     }
@@ -210,6 +213,7 @@ export default function FridayNightFUT() {
       {view === 'teams' && authStatus.role === 'admin' && (
         <TeamGenerator
           players={players}
+          upcomingTeams={upcomingTeams}
           matches={matches}
           playerStreaks={playerStreaks}
           onLogMatch={(teams, matchType = 'add-match') => { setMatchSetup(teams); setView(matchType); }}

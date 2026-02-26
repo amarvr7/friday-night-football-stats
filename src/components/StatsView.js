@@ -35,16 +35,17 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                 };
                 dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
             } else {
+                const matchStats = calculateStatsFromMatches(p, filteredMatches); // filteredMatches is ALL matches here
                 dynamicStats = {
-                    goals: p.goals || 0,
-                    wins: p.wins || 0,
-                    gamesPlayed: p.gamesPlayed || 0,
-                    assists: p.assists || 0,
-                    cleanSheets: p.cleanSheets || 0,
-                    goalContrib: (p.goals || 0) + (p.assists || 0),
-                    goalsFor: p.goalsFor || 0,
-                    goalsAgainst: p.goalsAgainst || 0,
-                    motms: p.motms || 0
+                    goals: (p.goals || 0) + (p.season2026?.goals || 0) + matchStats.goals,
+                    wins: (p.wins || 0) + (p.season2026?.wins || 0) + matchStats.wins,
+                    gamesPlayed: (p.gamesPlayed || 0) + (p.season2026?.games || 0) + matchStats.gamesPlayed,
+                    assists: (p.assists || 0) + (p.season2026?.assists || 0) + matchStats.assists,
+                    cleanSheets: (p.cleanSheets || 0) + (p.season2026?.cleanSheets || 0) + matchStats.cleanSheets,
+                    goalContrib: (p.goals || 0) + (p.assists || 0) + (p.season2026?.goals || 0) + (p.season2026?.assists || 0) + matchStats.goals + matchStats.assists,
+                    goalsFor: (p.goalsFor || 0) + (p.season2026?.goalsFor || 0) + matchStats.goalsFor,
+                    goalsAgainst: (p.goalsAgainst || 0) + (p.season2026?.goalsAgainst || 0) + matchStats.goalsAgainst,
+                    motms: (p.motms || 0) + (p.season2026?.motms || 0) + matchStats.motms
                 };
             }
 

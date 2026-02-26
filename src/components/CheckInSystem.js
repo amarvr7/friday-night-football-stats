@@ -145,8 +145,16 @@ const CheckInSystem = ({ players, currentUserRole }) => {
                             />
                         )}
                     </div>
-                    <button onClick={handleCheckIn} disabled={!selectedPlayer || (selectedPlayer === 'NEW' && !newPlayerName.trim())} className="w-full sm:w-auto bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 h-[50px]">
-                        <UserCheck size={18} /> I'm In
+                    <button
+                        onClick={handleCheckIn}
+                        disabled={!selectedPlayer || (selectedPlayer === 'NEW' && !newPlayerName.trim())}
+                        className={`w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 h-[50px] transition-colors ${checkins.length >= 12 ? 'bg-orange-500 hover:bg-orange-400' : 'bg-green-600 hover:bg-green-500'}`}
+                    >
+                        {checkins.length >= 12 ? (
+                            <><Clock size={18} /> Join Waitlist</>
+                        ) : (
+                            <><UserCheck size={18} /> I'm In</>
+                        )}
                     </button>
                 </div>
             ) : (

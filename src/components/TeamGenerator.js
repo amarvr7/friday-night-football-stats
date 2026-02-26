@@ -4,7 +4,7 @@ import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, d
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
 
-const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch }) => {
+const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTeams }) => {
     const [confirmedPlayers, setConfirmedPlayers] = useState([]);
     const [teamBlue, setTeamBlue] = useState([]);
     const [teamWhite, setTeamWhite] = useState([]);
@@ -23,6 +23,21 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch }) => {
         });
         return () => unsub();
     }, [players]);
+
+    // Hydrate teams from published upcomingTeams if local teams are empty
+    useEffect(() => {
+        if (upcomingTeams && players.length > 0) {
+            // Only hydrate if we are initializing empty local state
+            if (teamBlue.length === 0 && teamWhite.length === 0) {
+                const b = (upcomingTeams.blue || []).map(id => players.find(p => p.id === id)).filter(Boolean);
+                const w = (upcomingTeams.white || []).map(id => players.find(p => p.id === id)).filter(Boolean);
+                if (b.length > 0 || w.length > 0) {
+                    setTeamBlue(b);
+                    setTeamWhite(w);
+                }
+            }
+        }
+    }, [upcomingTeams, players]);
 
     // Isolated 2026 Matches
     const filteredMatches = useMemo(() => {
