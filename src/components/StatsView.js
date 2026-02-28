@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowDown, ArrowUp, BarChart2, Search, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, BarChart2, Search, Plus, Edit2, Trash2 } from 'lucide-react';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
 
-const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, currentUserRole }) => {
+const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, onEditMatch, onDeleteMatch, currentUserRole }) => {
     const [sortField, setSortField] = useState('overall');
     const [sortDesc, setSortDesc] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -193,6 +193,11 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                         if (pStats.assists > 0) events.push({ type: 'assist', player: players.find(p => p.id === pid)?.name, count: pStats.assists });
                                     }
                                 });
+                                // Add own goals
+                                const ownGoalsCount = teamColor === 'blue' ? (m.blueOwnGoals || 0) : (m.whiteOwnGoals || 0);
+                                if (ownGoalsCount > 0) {
+                                    events.push({ type: 'own_goal', player: 'Own Goal', count: ownGoalsCount });
+                                }
                                 return events;
                             };
 
@@ -200,8 +205,18 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             const whiteEvents = getEvents('white');
 
                             return (
-                                <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700">
-                                    <div className="flex justify-between items-center mb-4">
+                                <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 relative">
+                                    {currentUserRole === 'admin' && (
+                                        <div className="absolute top-2 right-2 flex gap-2">
+                                            <button onClick={() => onEditMatch(m)} className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-700 hover:border-slate-500 transition-colors" title="Edit Match">
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button onClick={() => onDeleteMatch(m)} className="p-1.5 bg-slate-800 text-red-400/70 hover:text-red-400 rounded border border-slate-700 hover:border-red-500 transition-colors" title="Delete Match">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center mb-4 pt-2">
                                         <div className="text-slate-500 text-xs font-bold uppercase w-20">{date}</div>
                                         <div className="flex items-center gap-6">
                                             <div className="text-right">
@@ -231,9 +246,10 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                         <div className="w-1/2 pr-2">
                                             {blueEvents.map((e, idx) => (
                                                 <div key={idx} className="flex justify-end gap-1 mb-1">
-                                                    <span className="text-white font-bold">{e.player}</span>
+                                                    <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
                                                     {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
                                                     {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                    {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
                                                 </div>
                                             ))}
                                         </div>
@@ -242,7 +258,8 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                                 <div key={idx} className="flex justify-start gap-1 mb-1">
                                                     {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
                                                     {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    <span className="text-white font-bold">{e.player}</span>
+                                                    {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                    <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
                                                 </div>
                                             ))}
                                         </div>

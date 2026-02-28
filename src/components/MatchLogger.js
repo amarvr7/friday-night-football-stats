@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
 import { Activity } from 'lucide-react';
 
-const MatchLogger = ({ players, onSave, onCancel, initialTeams }) => {
+const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) => {
     const [selectedPlayers, setSelectedPlayers] = useState([]);
     const [matchData, setMatchData] = useState({});
     const [blueScore, setBlueScore] = useState(0);
     const [whiteScore, setWhiteScore] = useState(0);
+    const [blueOwnGoals, setBlueOwnGoals] = useState(0);
+    const [whiteOwnGoals, setWhiteOwnGoals] = useState(0);
     const [motm, setMotm] = useState(null);
 
-    // Initialize from pre-filled teams if available
+    // Initialize from editing match or pre-filled teams
     React.useEffect(() => {
-        if (initialTeams) {
+        if (editingMatch) {
+            const playerIds = Object.keys(editingMatch.stats || {});
+            setSelectedPlayers(playerIds);
+            setMatchData(editingMatch.stats || {});
+            setMotm(editingMatch.motm || null);
+            setBlueOwnGoals(editingMatch.blueOwnGoals || 0);
+            setWhiteOwnGoals(editingMatch.whiteOwnGoals || 0);
+        } else if (initialTeams) {
             const blueIds = initialTeams.blue.map(p => p.id);
             const whiteIds = initialTeams.white.map(p => p.id);
             const allIds = [...blueIds, ...whiteIds];
@@ -27,19 +36,19 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams }) => {
 
             setMatchData(initialData);
         }
-    }, [initialTeams]);
+    }, [initialTeams, editingMatch]);
 
-    // Auto-calculate scores when matchData changes
+    // Auto-calculate scores when matchData or own goals change
     React.useEffect(() => {
-        let b = 0;
-        let w = 0;
+        let b = blueOwnGoals;
+        let w = whiteOwnGoals;
         Object.values(matchData).forEach(p => {
             if (p.team === 'blue') b += (p.goals || 0);
             if (p.team === 'white') w += (p.goals || 0);
         });
         setBlueScore(b);
         setWhiteScore(w);
-    }, [matchData]);
+    }, [matchData, blueOwnGoals, whiteOwnGoals]);
 
     const togglePlayer = (playerId) => {
         if (selectedPlayers.includes(playerId)) {
@@ -79,12 +88,12 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams }) => {
                 cleanSheet: isBlue ? blueClean : whiteClean
             };
         });
-        onSave(finalData, { motm });
+        onSave(finalData, { motm, blueOwnGoals, whiteOwnGoals });
     };
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Activity className="text-green-400" /> Log 2026 Match</h2>
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Activity className="text-green-400" /> {editingMatch ? 'Edit Match' : 'Log 2026 Match'}</h2>
 
             <div className="mb-6"><label className="block text-slate-400 text-sm font-bold mb-2 uppercase">Who Played?</label><div className="flex flex-wrap gap-2">{players.map(p => (<button key={p.id} type="button" onClick={() => togglePlayer(p.id)} className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${selectedPlayers.includes(p.id) ? 'bg-green-500 text-white shadow-lg' : 'bg-slate-700 text-slate-400'}`}>{p.name}</button>))}</div></div>
 
@@ -96,12 +105,24 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams }) => {
                             <div className="w-16 h-16 text-center text-3xl font-black bg-slate-800 text-white rounded-lg border border-blue-500 flex items-center justify-center">
                                 {blueScore}
                             </div>
+                            <div className="mt-2 flex items-center justify-center gap-2">
+                                <span className="text-[10px] text-slate-400 uppercase">OGs</span>
+                                <button type="button" onClick={() => setBlueOwnGoals(Math.max(0, blueOwnGoals - 1))} className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center text-xs">-</button>
+                                <span className="text-xs text-white font-mono">{blueOwnGoals}</span>
+                                <button type="button" onClick={() => setBlueOwnGoals(blueOwnGoals + 1)} className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-xs">+</button>
+                            </div>
                         </div>
                         <div className="text-slate-500 font-black text-xl">VS</div>
                         <div className="text-center">
                             <h3 className="text-white font-bold uppercase mb-2">White Team</h3>
                             <div className="w-16 h-16 text-center text-3xl font-black bg-slate-800 text-white rounded-lg border border-white flex items-center justify-center">
                                 {whiteScore}
+                            </div>
+                            <div className="mt-2 flex items-center justify-center gap-2">
+                                <span className="text-[10px] text-slate-400 uppercase">OGs</span>
+                                <button type="button" onClick={() => setWhiteOwnGoals(Math.max(0, whiteOwnGoals - 1))} className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center text-xs">-</button>
+                                <span className="text-xs text-white font-mono">{whiteOwnGoals}</span>
+                                <button type="button" onClick={() => setWhiteOwnGoals(whiteOwnGoals + 1)} className="w-5 h-5 rounded bg-slate-300 text-slate-900 flex items-center justify-center text-xs">+</button>
                             </div>
                         </div>
                     </div>

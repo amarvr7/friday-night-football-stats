@@ -46,6 +46,7 @@ export default function FridayNightFUT() {
   const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [matchSetup, setMatchSetup] = useState(null); // Pre-filled match data from Team Generator
+  const [editingMatch, setEditingMatch] = useState(null); // State for editing an existing match
 
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
@@ -57,33 +58,107 @@ export default function FridayNightFUT() {
   }, []);
 
   const handleSaveMatch = async (matchData, matchInfo = {}) => {
-    await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES), {
-      date: serverTimestamp(),
-      stats: matchData,
-      createdBy: user.uid,
-      motm: matchInfo.motm || null
-    });
+    if (editingMatch) {
+      const matchRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES, editingMatch.id);
+      await updateDoc(matchRef, {
+        stats: matchData,
+        motm: matchInfo.motm || null,
+        blueOwnGoals: matchInfo.blueOwnGoals || 0,
+        whiteOwnGoals: matchInfo.whiteOwnGoals || 0
+      });
 
-    const playerIds = Object.keys(matchData);
-    for (const pid of playerIds) {
-      const stats = matchData[pid];
-      const player = players.find(p => p.id === pid);
-      if (player) {
-        const isMotm = matchInfo.motm === pid;
-        const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
-        await updateDoc(playerRef, {
-          goals: (player.goals || 0) + stats.goals,
-          assists: (player.assists || 0) + stats.assists,
-          wins: (player.wins || 0) + (stats.win ? 1 : 0),
-          gamesPlayed: (player.gamesPlayed || 0) + 1,
-          motms: (player.motms || 0) + (isMotm ? 1 : 0),
-          cleanSheets: (player.cleanSheets || 0) + (stats.cleanSheet ? 1 : 0),
-          goalsFor: (player.goalsFor || 0) + (stats.goalsFor || 0),
-          goalsAgainst: (player.goalsAgainst || 0) + (stats.goalsAgainst || 0)
-        });
+      const batch = writeBatch(db);
+      const oldStats = editingMatch.stats || {};
+      const oldMotm = editingMatch.motm;
+      const allPlayerIds = new Set([...Object.keys(oldStats), ...Object.keys(matchData)]);
+
+      for (const pid of allPlayerIds) {
+        const oldP = oldStats[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0 };
+        const newP = matchData[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0 };
+        const player = players.find(p => p.id === pid);
+        if (player) {
+          const isOldMotm = oldMotm === pid;
+          const isNewMotm = matchInfo.motm === pid;
+
+          const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
+          batch.update(playerRef, {
+            goals: Math.max(0, (player.goals || 0) - oldP.goals + newP.goals),
+            assists: Math.max(0, (player.assists || 0) - oldP.assists + newP.assists),
+            wins: Math.max(0, (player.wins || 0) - (oldP.win ? 1 : 0) + (newP.win ? 1 : 0)),
+            gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - (oldStats[pid] ? 1 : 0) + (matchData[pid] ? 1 : 0)),
+            motms: Math.max(0, (player.motms || 0) - (isOldMotm ? 1 : 0) + (isNewMotm ? 1 : 0)),
+            cleanSheets: Math.max(0, (player.cleanSheets || 0) - (oldP.cleanSheet ? 1 : 0) + (newP.cleanSheet ? 1 : 0)),
+            goalsFor: Math.max(0, (player.goalsFor || 0) - (oldP.goalsFor || 0) + (newP.goalsFor || 0)),
+            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (oldP.goalsAgainst || 0) + (newP.goalsAgainst || 0))
+          });
+        }
+      }
+      await batch.commit();
+      setEditingMatch(null);
+    } else {
+      await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES), {
+        date: serverTimestamp(),
+        stats: matchData,
+        createdBy: user.uid,
+        motm: matchInfo.motm || null,
+        blueOwnGoals: matchInfo.blueOwnGoals || 0,
+        whiteOwnGoals: matchInfo.whiteOwnGoals || 0
+      });
+
+      const playerIds = Object.keys(matchData);
+      for (const pid of playerIds) {
+        const stats = matchData[pid];
+        const player = players.find(p => p.id === pid);
+        if (player) {
+          const isMotm = matchInfo.motm === pid;
+          const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
+          await updateDoc(playerRef, {
+            goals: (player.goals || 0) + stats.goals,
+            assists: (player.assists || 0) + stats.assists,
+            wins: (player.wins || 0) + (stats.win ? 1 : 0),
+            gamesPlayed: (player.gamesPlayed || 0) + 1,
+            motms: (player.motms || 0) + (isMotm ? 1 : 0),
+            cleanSheets: (player.cleanSheets || 0) + (stats.cleanSheet ? 1 : 0),
+            goalsFor: (player.goalsFor || 0) + (stats.goalsFor || 0),
+            goalsAgainst: (player.goalsAgainst || 0) + (stats.goalsAgainst || 0)
+          });
+        }
       }
     }
     setView('dashboard');
+  };
+
+  const handleDeleteMatch = async (match) => {
+    if (!window.confirm("Are you sure you want to delete this match? This will remove all stats associated with it.")) return;
+    try {
+      const batch = writeBatch(db);
+      const matchStats = match.stats || {};
+      const playerIds = Object.keys(matchStats);
+      for (const pid of playerIds) {
+        const stats = matchStats[pid];
+        const player = players.find(p => p.id === pid);
+        if (player) {
+          const isMotm = match.motm === pid;
+          const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
+          batch.update(playerRef, {
+            goals: Math.max(0, (player.goals || 0) - stats.goals),
+            assists: Math.max(0, (player.assists || 0) - stats.assists),
+            wins: Math.max(0, (player.wins || 0) - (stats.win ? 1 : 0)),
+            gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - 1),
+            motms: Math.max(0, (player.motms || 0) - (isMotm ? 1 : 0)),
+            cleanSheets: Math.max(0, (player.cleanSheets || 0) - (stats.cleanSheet ? 1 : 0)),
+            goalsFor: Math.max(0, (player.goalsFor || 0) - (stats.goalsFor || 0)),
+            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (stats.goalsAgainst || 0))
+          });
+        }
+      }
+      await batch.commit();
+      await deleteDoc(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES, match.id));
+      alert("Match deleted successfully.");
+    } catch (err) {
+      console.error("Failed to delete match:", err);
+      alert("Failed to delete match.");
+    }
   };
 
   const handleSeedData = async () => {
@@ -205,8 +280,9 @@ export default function FridayNightFUT() {
         <MatchLogger
           players={players}
           onSave={handleSaveMatch}
-          onCancel={() => { setView('dashboard'); setMatchSetup(null); }}
+          onCancel={() => { setView('dashboard'); setMatchSetup(null); setEditingMatch(null); }}
           initialTeams={matchSetup}
+          editingMatch={editingMatch}
         />
       )}
 
@@ -227,6 +303,8 @@ export default function FridayNightFUT() {
           playerStreaks={playerStreaks}
           onSelectPlayer={(p) => setSelectedPlayerForEdit(p)}
           onAddMatch={() => setView('add-match')}
+          onEditMatch={(m) => { setEditingMatch(m); setView('add-match'); }}
+          onDeleteMatch={handleDeleteMatch}
           currentUserRole={authStatus.role}
         />
       )}
