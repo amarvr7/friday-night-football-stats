@@ -35,6 +35,7 @@ import LiveMatchTracker from './components/LiveMatchTracker';
 import LegacyImporter from './components/LegacyImporter';
 import TeamGenerator from './components/TeamGenerator';
 import PlayerCard from './components/PlayerCard';
+import RecordsView from './components/RecordsView';
 
 // --- Main Application ---
 export default function FridayNightFUT() {
@@ -320,6 +321,16 @@ export default function FridayNightFUT() {
           handleSeedData={handleSeedData}
           setSelectedPlayerForEdit={setSelectedPlayerForEdit}
           setView={setView}
+        />
+      )}
+
+      {view === 'records' && (
+        <RecordsView
+          players={players}
+          matches={matches}
+          playerStreaks={playerStreaks}
+          userRole={authStatus.role}
+          handleUploadRecords={(csv) => console.log(csv)}
         />
       )}
 

@@ -62,7 +62,7 @@ export default function DashboardView({
                 ...p,
                 ...dynamicStats,
                 // Recalculate OVR based on these stats
-                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore, filterYear === '2026')
+                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id], filterYear === '2026')
             };
         });
 

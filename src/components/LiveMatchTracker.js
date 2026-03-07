@@ -24,11 +24,11 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             const initialVotes = {};
 
             blueIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, team: 'blue' };
+                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'blue' };
                 initialVotes[id] = 0;
             });
             whiteIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, team: 'white' };
+                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'white' };
                 initialVotes[id] = 0;
             });
 
@@ -62,8 +62,14 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         let b = 0;
         let w = 0;
         Object.values(matchData).forEach(p => {
-            if (p.team === 'blue') b += (p.goals || 0);
-            if (p.team === 'white') w += (p.goals || 0);
+            if (p.team === 'blue') {
+                b += (p.goals || 0);
+                w += (p.ownGoals || 0);
+            }
+            if (p.team === 'white') {
+                w += (p.goals || 0);
+                b += (p.ownGoals || 0);
+            }
         });
         setBlueScore(b);
         setWhiteScore(w);
@@ -75,7 +81,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             ...prev,
             [playerId]: {
                 ...prev[playerId],
-                [field]: Math.max(0, prev[playerId][field] + increment)
+                [field]: Math.max(0, (prev[playerId][field] || 0) + increment)
             }
         }));
     };
@@ -183,9 +189,15 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                         </button>
                                         <button
                                             onClick={() => updateStat(pid, 'assists', 1)}
-                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors"
+                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
                                         >
                                             <Plus size={14} /> Ast <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.assists}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => updateStat(pid, 'ownGoals', 1)}
+                                            className="flex items-center gap-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
+                                        >
+                                            <Plus size={14} /> OG <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.ownGoals || 0}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -210,9 +222,15 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                         </button>
                                         <button
                                             onClick={() => updateStat(pid, 'assists', 1)}
-                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors"
+                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
                                         >
                                             <Plus size={14} /> Ast <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.assists}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => updateStat(pid, 'ownGoals', 1)}
+                                            className="flex items-center gap-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
+                                        >
+                                            <Plus size={14} /> OG <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.ownGoals || 0}</span>
                                         </button>
                                     </div>
                                 </div>

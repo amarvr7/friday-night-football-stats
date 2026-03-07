@@ -60,8 +60,8 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
             cleanSheets: matchStats.cleanSheets + (player.season2026?.cleanSheets || 0),
             motms: (matchStats.motms || 0) + (player.season2026?.motms || 0)
         };
-        const formScore = playerStreaks?.[player.id]?.formScore;
-        return calculateOverall(player, dynamicStats, formScore, true); // forceDynamic = true
+        const streaks = playerStreaks?.[player.id];
+        return calculateOverall(player, dynamicStats, streaks, true); // forceDynamic = true
     };
 
     const generateTeams = () => {

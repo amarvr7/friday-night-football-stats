@@ -54,7 +54,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                 ...dynamicStats,
                 winRate: dynamicStats.gamesPlayed > 0 ? (dynamicStats.wins / dynamicStats.gamesPlayed) * 100 : 0,
                 goalsPerGame: dynamicStats.gamesPlayed > 0 ? dynamicStats.goals / dynamicStats.gamesPlayed : 0,
-                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id]?.formScore, filterYear === '2026')
+                overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id], filterYear === '2026')
             };
         }).filter(p => filterYear === 'all' || p.gamesPlayed > 0);
     }, [players, filteredMatches, filterYear, playerStreaks]);
@@ -186,17 +186,21 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             // Helper to get events
                             const getEvents = (teamColor) => {
                                 const events = [];
+                                const otherTeamColor = teamColor === 'blue' ? 'white' : 'blue';
                                 pIds.forEach(pid => {
                                     const pStats = m.stats[pid];
                                     if (pStats.team === teamColor) {
                                         if (pStats.goals > 0) events.push({ type: 'goal', player: players.find(p => p.id === pid)?.name, count: pStats.goals });
                                         if (pStats.assists > 0) events.push({ type: 'assist', player: players.find(p => p.id === pid)?.name, count: pStats.assists });
                                     }
+                                    if (pStats.team === otherTeamColor) {
+                                        if (pStats.ownGoals > 0) events.push({ type: 'own_goal', player: players.find(p => p.id === pid)?.name, count: pStats.ownGoals });
+                                    }
                                 });
-                                // Add own goals
+                                // Add legacy team own goals
                                 const ownGoalsCount = teamColor === 'blue' ? (m.blueOwnGoals || 0) : (m.whiteOwnGoals || 0);
                                 if (ownGoalsCount > 0) {
-                                    events.push({ type: 'own_goal', player: 'Own Goal', count: ownGoalsCount });
+                                    events.push({ type: 'own_goal', player: 'Team Own Goal', count: ownGoalsCount });
                                 }
                                 return events;
                             };

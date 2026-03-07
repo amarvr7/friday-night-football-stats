@@ -28,10 +28,10 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
 
             const initialData = {};
             blueIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, team: 'blue' };
+                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'blue' };
             });
             whiteIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, team: 'white' };
+                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'white' };
             });
 
             setMatchData(initialData);
@@ -43,8 +43,14 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
         let b = blueOwnGoals;
         let w = whiteOwnGoals;
         Object.values(matchData).forEach(p => {
-            if (p.team === 'blue') b += (p.goals || 0);
-            if (p.team === 'white') w += (p.goals || 0);
+            if (p.team === 'blue') {
+                b += (p.goals || 0);
+                w += (p.ownGoals || 0);
+            }
+            if (p.team === 'white') {
+                w += (p.goals || 0);
+                b += (p.ownGoals || 0);
+            }
         });
         setBlueScore(b);
         setWhiteScore(w);
@@ -57,7 +63,7 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
         } else {
             setSelectedPlayers(prev => [...prev, playerId]);
             // Default to blue team
-            setMatchData(prev => ({ ...prev, [playerId]: { goals: 0, assists: 0, team: 'blue' } }));
+            setMatchData(prev => ({ ...prev, [playerId]: { goals: 0, assists: 0, ownGoals: 0, team: 'blue' } }));
         }
     };
 
@@ -155,6 +161,15 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
                                             <button type="button" onClick={() => updateStat(pid, 'assists', Math.max(0, stats.assists - 1))} className="w-6 h-6 rounded bg-slate-600 text-white">-</button>
                                             <span className="w-4 text-center text-white font-mono">{stats.assists}</span>
                                             <button type="button" onClick={() => updateStat(pid, 'assists', stats.assists + 1)} className="w-6 h-6 rounded bg-blue-600 text-white">+</button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col items-center">
+                                        <span className="text-[10px] text-slate-400 uppercase">OGs</span>
+                                        <div className="flex items-center gap-1">
+                                            <button type="button" onClick={() => updateStat(pid, 'ownGoals', Math.max(0, (stats.ownGoals || 0) - 1))} className="w-6 h-6 rounded bg-slate-600 text-white">-</button>
+                                            <span className="w-4 text-center text-white font-mono">{stats.ownGoals || 0}</span>
+                                            <button type="button" onClick={() => updateStat(pid, 'ownGoals', (stats.ownGoals || 0) + 1)} className="w-6 h-6 rounded bg-red-600 text-white">+</button>
                                         </div>
                                     </div>
                                 </div>

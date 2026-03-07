@@ -35,8 +35,7 @@ export const calculateStatsFromMatches = (player, matches) => {
 
     return stats;
 };
-
-export const calculateOverall = (player, statsOverride = null, formBonus = 0, forceDynamic = false) => {
+export const calculateOverall = (player, statsOverride = null, streaks = null, forceDynamic = false) => {
     let baseRating;
 
     // Only use manual ratings if we aren't forcing dynamic stat calculation
@@ -87,9 +86,24 @@ export const calculateOverall = (player, statsOverride = null, formBonus = 0, fo
         baseRating = Math.round(rating);
     }
 
-    // Apply Form Bonus (Max +5 for max form score of 20)
-    const bonus = Math.round((formBonus || 0) / 4);
-    return Math.min(baseRating + bonus, 99);
+    let modifier = 0;
+    if (streaks) {
+        // Form Bonus (Max +5 for max form score of 20)
+        modifier += Math.round((streaks.formScore || 0) / 4);
+
+        // Streak Bonus (e.g., +1 for win/goal/assist/cs streak >= 3)
+        if (streaks.winStreak >= 3) modifier += 1;
+        if (streaks.goalStreak >= 3) modifier += 1;
+        if (streaks.assistStreak >= 3) modifier += 1;
+        if (streaks.cleanSheetStreak >= 3) modifier += 1;
+
+        // Inactivity Penalty (e.g., -1 for every week missed after 2 weeks, max -5)
+        if (streaks.weeksSinceLastPlayed > 2) {
+            modifier -= Math.min(streaks.weeksSinceLastPlayed - 2, 5);
+        }
+    }
+
+    return Math.min(baseRating + modifier, 99);
 };
 
 export const compressImage = (file) => {
@@ -124,9 +138,27 @@ export const calculateStreaks = (player, matches) => {
     let cleanSheetStreak = 0;
     let lossStreak = 0;
     let playedStreak = 0;
+    let weeksSinceLastPlayed = 0;
     const last5 = [];
 
     let formScore = 0;
+
+    // Calculate Weeks Since Last Played
+    if (playerMatches.length > 0 && playerMatches[0].date) {
+        // Find most recent overall match date
+        const mostRecentMatch = sortedMatches[0];
+        if (mostRecentMatch && mostRecentMatch.date) {
+            const lastMatchDate = new Date(playerMatches[0].date.seconds * 1000);
+            const currentMatchDate = new Date(mostRecentMatch.date.seconds * 1000);
+            const diffTime = Math.abs(currentMatchDate - lastMatchDate);
+            weeksSinceLastPlayed = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+        }
+    } else if (sortedMatches.length > 0 && sortedMatches[0].date) {
+        // If they never played but there are matches, calculate weeks since most recent overall match
+        // Or could be treated as inactive since beginning.
+        // Let's find first match they could have played
+        weeksSinceLastPlayed = 99; // Arbitrary high number for never played
+    }
 
     // Played Streak is how many sequential matches player played in prior to their last unplayed
     // Let's iterate over sortedMatches (all matches) to find played streak
@@ -186,5 +218,15 @@ export const calculateStreaks = (player, matches) => {
         }
     }
 
-    return { winStreak, lossStreak, goalStreak, assistStreak, cleanSheetStreak, playedStreak, last5, formScore: Math.min(formScore, 20) }; // Cap at 20
+    return {
+        winStreak,
+        lossStreak,
+        goalStreak,
+        assistStreak,
+        cleanSheetStreak,
+        playedStreak,
+        last5,
+        formScore: Math.min(formScore, 20),
+        weeksSinceLastPlayed
+    };
 };

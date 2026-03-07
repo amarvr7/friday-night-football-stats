@@ -6,7 +6,7 @@ const PlayerCard = ({ player, rank, onUploadClick, onEditRatings, canEdit, seaso
     const statsToUse = seasonStats || player;
 
     // Use pre-computed overall if available, otherwise recalculate
-    const overall = seasonStats?.overall || calculateOverall(player, seasonStats, streaks?.formScore, forceDynamic);
+    const overall = seasonStats?.overall || calculateOverall(player, seasonStats, streaks, forceDynamic);
     const { ratings } = player;
 
     // Calculate dynamic stat bumps based on streaks

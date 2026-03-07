@@ -49,21 +49,28 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
                 <div className="flex justify-around items-center max-w-4xl mx-auto">
                     <button
                         onClick={() => setView('dashboard')}
-                        className={`flex flex-col items-center py-3 px-6 ${view === 'dashboard' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'dashboard' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <Trophy size={20} />
                         <span className="text-[10px] font-bold mt-1 uppercase">Home</span>
                     </button>
                     <button
+                        onClick={() => setView('records')}
+                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'records' ? 'text-green-400' : 'text-slate-500'}`}
+                    >
+                        <Trophy size={20} />
+                        <span className="text-[10px] font-bold mt-1 uppercase">Records</span>
+                    </button>
+                    <button
                         onClick={() => setView('stats')}
-                        className={`flex flex-col items-center py-3 px-6 ${view === 'stats' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'stats' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <BarChart2 size={20} />
                         <span className="text-[10px] font-bold mt-1 uppercase">Stats</span>
                     </button>
                     <button
                         onClick={() => setView('players')}
-                        className={`flex flex-col items-center py-3 px-6 ${view === 'players' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'players' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <Users size={20} />
                         <span className="text-[10px] font-bold mt-1 uppercase">Squad</span>
@@ -72,16 +79,16 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
                         <>
                             <button
                                 onClick={() => setView('teams')}
-                                className={`flex flex-col items-center py-3 px-6 ${view === 'teams' ? 'text-green-400' : 'text-slate-500'}`}
+                                className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'teams' ? 'text-green-400' : 'text-slate-500'}`}
                             >
                                 <Shirt size={20} />
                                 <span className="text-[10px] font-bold mt-1 uppercase">Sheet</span>
                             </button>
                             <button
                                 onClick={hasUpcomingTeams ? handleStartLiveMatch : () => setView('add-match')}
-                                className={`flex flex-col items-center py-3 px-6 transition-colors ${view === 'add-match' || view === 'live-match'
-                                        ? 'text-green-400'
-                                        : (hasUpcomingTeams ? 'text-green-500 animate-pulse' : 'text-slate-500 hover:text-slate-300')
+                                className={`flex flex-col items-center py-3 px-4 md:px-6 transition-colors ${view === 'add-match' || view === 'live-match'
+                                    ? 'text-green-400'
+                                    : (hasUpcomingTeams ? 'text-green-500 animate-pulse' : 'text-slate-500 hover:text-slate-300')
                                     }`}
                             >
                                 <Activity size={20} />
