@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Award, Upload, Download, Flame, Clock, TrendingUp, Shield, Activity, Trophy } from 'lucide-react';
 
 const RecordsView = ({ players, matches, playerStreaks, userRole, handleUploadRecords }) => {
