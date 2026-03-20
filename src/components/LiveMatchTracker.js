@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Star, Timer, CheckCircle, Plus } from 'lucide-react';
+import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus } from 'lucide-react';
 
 const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     const [matchData, setMatchData] = useState({});
@@ -13,6 +13,10 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     // View state: 'playing' or 'voting'
     const [matchPhase, setMatchPhase] = useState('playing');
+
+    // Sub Modal State
+    const [subModalTeam, setSubModalTeam] = useState(null);
+    const [selectedSub, setSelectedSub] = useState('');
 
     // Initialize players from initialTeams
     useEffect(() => {
@@ -136,6 +140,57 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
+            {/* Sub Modal */}
+            {subModalTeam && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setSubModalTeam(null)}>
+                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-white mb-4">Add Substitute to {subModalTeam === 'blue' ? 'Blue' : 'White'} Team</h3>
+                        <select
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white mb-4"
+                            value={selectedSub}
+                            onChange={(e) => setSelectedSub(e.target.value)}
+                        >
+                            <option value="">Select a player...</option>
+                            {players
+                                .filter(p => !matchData[p.id])
+                                .sort((a,b) => a.name.localeCompare(b.name))
+                                .map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))
+                            }
+                        </select>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setSubModalTeam(null)}
+                                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={!selectedSub}
+                                onClick={() => {
+                                    if (selectedSub) {
+                                        setMatchData(prev => ({
+                                            ...prev,
+                                            [selectedSub]: { goals: 0, assists: 0, ownGoals: 0, team: subModalTeam }
+                                        }));
+                                        setMotmVotes(prev => ({
+                                            ...prev,
+                                            [selectedSub]: 0
+                                        }));
+                                        setSubModalTeam(null);
+                                        setSelectedSub('');
+                                    }
+                                }}
+                                className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors"
+                            >
+                                Add Player
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Activity className={isRunning ? "text-green-500 animate-pulse" : "text-yellow-500"} />
@@ -180,29 +235,50 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                             return (
                                 <div key={pid} className="flex items-center justify-between p-3 rounded-lg border bg-blue-900/10 border-blue-500/20">
                                     <span className="font-bold text-white block truncate flex-1">{player?.name}</span>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => updateStat(pid, 'goals', 1)}
-                                            className="flex items-center gap-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> Goal <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.goals}</span>
-                                        </button>
-                                        <button
-                                            onClick={() => updateStat(pid, 'assists', 1)}
-                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> Ast <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.assists}</span>
-                                        </button>
-                                        <button
-                                            onClick={() => updateStat(pid, 'ownGoals', 1)}
-                                            className="flex items-center gap-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> OG <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.ownGoals || 0}</span>
-                                        </button>
+                                    <div className="flex gap-1.5 mt-2 lg:mt-0 lg:ml-auto">
+                                        <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
+                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-green-400 flex items-center min-w-[3.5rem] justify-center">
+                                                G <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.goals}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center bg-blue-500/20 rounded-lg text-sm font-bold border border-blue-500/30">
+                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-blue-400 flex items-center min-w-[3.5rem] justify-center">
+                                                A <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.assists}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center bg-red-500/20 rounded-lg text-sm font-bold border border-red-500/30">
+                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-red-400 flex items-center min-w-[3.5rem] justify-center">
+                                                OG <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.ownGoals || 0}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
+                        <button
+                            onClick={() => setSubModalTeam('blue')}
+                            className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-blue-500/40 text-blue-400 hover:bg-blue-900/40 transition-colors font-bold text-sm mt-2"
+                        >
+                            <UserPlus size={16} /> Sub / Add Player
+                        </button>
                     </div>
 
                     {/* White Team Column */}
@@ -213,29 +289,50 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                             return (
                                 <div key={pid} className="flex items-center justify-between p-3 rounded-lg border bg-slate-700/30 border-white/20">
                                     <span className="font-bold text-white block truncate flex-1">{player?.name}</span>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => updateStat(pid, 'goals', 1)}
-                                            className="flex items-center gap-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> Goal <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.goals}</span>
-                                        </button>
-                                        <button
-                                            onClick={() => updateStat(pid, 'assists', 1)}
-                                            className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> Ast <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.assists}</span>
-                                        </button>
-                                        <button
-                                            onClick={() => updateStat(pid, 'ownGoals', 1)}
-                                            className="flex items-center gap-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 px-2 py-1.5 rounded-lg text-sm font-bold transition-colors"
-                                        >
-                                            <Plus size={14} /> OG <span className="text-white ml-1 bg-black/30 px-1.5 rounded">{stats.ownGoals || 0}</span>
-                                        </button>
+                                    <div className="flex gap-1.5 mt-2 lg:mt-0 lg:ml-auto">
+                                        <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
+                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-green-400 flex items-center min-w-[3.5rem] justify-center">
+                                                G <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.goals}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center bg-blue-500/20 rounded-lg text-sm font-bold border border-blue-500/30">
+                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-blue-400 flex items-center min-w-[3.5rem] justify-center">
+                                                A <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.assists}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center bg-red-500/20 rounded-lg text-sm font-bold border border-red-500/30">
+                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-l-lg transition-colors">
+                                                <Minus size={14} />
+                                            </button>
+                                            <div className="px-1 text-red-400 flex items-center min-w-[3.5rem] justify-center">
+                                                OG <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.ownGoals || 0}</span>
+                                            </div>
+                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-r-lg transition-colors">
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
+                        <button
+                            onClick={() => setSubModalTeam('white')}
+                            className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-slate-500/40 text-slate-400 hover:bg-slate-700/50 transition-colors font-bold text-sm mt-2"
+                        >
+                            <UserPlus size={16} /> Sub / Add Player
+                        </button>
                     </div>
                 </div>
             )}
