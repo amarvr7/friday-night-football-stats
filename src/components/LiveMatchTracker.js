@@ -233,9 +233,9 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                             const player = players.find(p => p.id === pid);
                             const stats = matchData[pid];
                             return (
-                                <div key={pid} className="flex items-center justify-between p-3 rounded-lg border bg-blue-900/10 border-blue-500/20">
-                                    <span className="font-bold text-white block truncate flex-1">{player?.name}</span>
-                                    <div className="flex gap-1.5 mt-2 lg:mt-0 lg:ml-auto">
+                                <div key={pid} className="flex flex-col p-3 rounded-lg border bg-blue-900/10 border-blue-500/20 gap-2.5 shadow-sm">
+                                    <span className="font-bold text-white text-lg truncate w-full">{player?.name}</span>
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
                                             <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
                                                 <Minus size={14} />
@@ -287,9 +287,9 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                             const player = players.find(p => p.id === pid);
                             const stats = matchData[pid];
                             return (
-                                <div key={pid} className="flex items-center justify-between p-3 rounded-lg border bg-slate-700/30 border-white/20">
-                                    <span className="font-bold text-white block truncate flex-1">{player?.name}</span>
-                                    <div className="flex gap-1.5 mt-2 lg:mt-0 lg:ml-auto">
+                                <div key={pid} className="flex flex-col p-3 rounded-lg border bg-slate-700/30 border-white/20 gap-2.5 shadow-sm">
+                                    <span className="font-bold text-white text-lg truncate w-full">{player?.name}</span>
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
                                             <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
                                                 <Minus size={14} />
