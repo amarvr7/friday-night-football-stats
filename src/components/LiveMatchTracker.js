@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus } from 'lucide-react';
+import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus, Share2 } from 'lucide-react';
 
 const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     const [matchData, setMatchData] = useState({});
@@ -13,6 +13,19 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     // View state: 'playing' or 'voting'
     const [matchPhase, setMatchPhase] = useState('playing');
+    const [pkAttempts, setPkAttempts] = useState({});
+    
+    // Fallback if they wanted to bypass the tracker
+    const [pkWinner, setPkWinner] = useState(null);
+
+    const togglePk = (pid, result) => {
+        setPkAttempts(prev => ({
+            ...prev,
+            [pid]: prev[pid] === result ? null : result
+        }));
+        // Reset manual override if using the tracker
+        setPkWinner(null);
+    };
 
     // Sub Modal State
     const [subModalTeam, setSubModalTeam] = useState(null);
@@ -113,8 +126,29 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         // Ensure we only assign motm if there was at least 1 vote
         if (maxVotes === 0) motm = null;
 
-        const blueWin = blueScore > whiteScore ? 1 : (blueScore === whiteScore ? 0.5 : 0);
-        const whiteWin = whiteScore > blueScore ? 1 : (whiteScore === blueScore ? 0.5 : 0);
+        let blueWin = blueScore > whiteScore ? 1 : (blueScore === whiteScore ? 0.5 : 0);
+        let whiteWin = whiteScore > blueScore ? 1 : (whiteScore === blueScore ? 0.5 : 0);
+
+        if (blueScore === whiteScore) {
+            let bluePkGoals = 0;
+            let whitePkGoals = 0;
+            Object.keys(pkAttempts).forEach(pid => {
+                if (pkAttempts[pid] === 'scored') {
+                    if (matchData[pid]?.team === 'blue') bluePkGoals++;
+                    if (matchData[pid]?.team === 'white') whitePkGoals++;
+                }
+            });
+            
+            if (bluePkGoals > whitePkGoals) {
+                blueWin = 1; whiteWin = 0;
+            } else if (whitePkGoals > bluePkGoals) {
+                blueWin = 0; whiteWin = 1;
+            } else if (pkWinner) {
+                blueWin = pkWinner === 'blue' ? 1 : 0;
+                whiteWin = pkWinner === 'white' ? 1 : 0;
+            }
+        }
+
         const blueClean = whiteScore === 0;
         const whiteClean = blueScore === 0;
 
@@ -131,7 +165,77 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             };
         });
 
-        onSave(finalData, { motm });
+        onSave(finalData, { motm, pkWinner });
+    };
+
+    const handleShare = () => {
+        const scoreText = `🏆 Friday Night Match Result! 🏆\nBlue: ${blueScore}\nWhite: ${whiteScore}`;
+        let pkText = '';
+        if (blueScore === whiteScore) {
+            let bluePkGoals = 0;
+            let whitePkGoals = 0;
+            const blueTakers = [];
+            const whiteTakers = [];
+            
+            Object.keys(pkAttempts).forEach(pid => {
+                const player = players.find(p => p.id === pid);
+                if (!player) return;
+                const isScored = pkAttempts[pid] === 'scored';
+                const mark = isScored ? '✅' : '❌';
+                const team = matchData[pid]?.team;
+                
+                if (team === 'blue') {
+                    if (isScored) bluePkGoals++;
+                    blueTakers.push(`${mark} ${player.name}`);
+                } else if (team === 'white') {
+                    if (isScored) whitePkGoals++;
+                    whiteTakers.push(`${mark} ${player.name}`);
+                }
+            });
+
+            if (Object.keys(pkAttempts).length > 0) {
+                const winnerText = bluePkGoals > whitePkGoals ? 'Blue' : (whitePkGoals > bluePkGoals ? 'White' : 'Tied');
+                pkText = `\n(${winnerText} wins ${bluePkGoals}-${whitePkGoals} on penalties!)`;
+                if (blueTakers.length > 0 || whiteTakers.length > 0) {
+                    pkText += `\n\n🔵 Blue Penalties:\n${blueTakers.length > 0 ? blueTakers.join(', ') : 'None'}`;
+                    pkText += `\n⚪ White Penalties:\n${whiteTakers.length > 0 ? whiteTakers.join(', ') : 'None'}\n`;
+                }
+            } else if (pkWinner) {
+                pkText = `\n(${pkWinner === 'blue' ? 'Blue' : 'White'} wins on PKs)\n`;
+            }
+        }
+        
+        let motmName = 'None';
+        let maxVotes = -1;
+        let currentMotm = null;
+        Object.entries(motmVotes).forEach(([pid, votes]) => {
+            if (votes > maxVotes) {
+                maxVotes = votes;
+                currentMotm = pid;
+            }
+        });
+        if (maxVotes > 0 && currentMotm) {
+            const player = players.find(p => p.id === currentMotm);
+            if (player) motmName = player.name;
+        }
+
+        const textToShare = `${scoreText}${pkText}\nMOTM: ${motmName}`;
+        
+        if (navigator.share) {
+            navigator.share({
+                title: 'Match Result',
+                text: textToShare
+            }).catch(err => {
+                console.error(err);
+                if (err.name !== 'AbortError') {
+                    navigator.clipboard.writeText(textToShare);
+                    alert("Score copied to clipboard!");
+                }
+            });
+        } else {
+            navigator.clipboard.writeText(textToShare);
+            alert("Score copied to clipboard!");
+        }
     };
 
     // Split players by team for the view
@@ -370,6 +474,68 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                 </div>
             )}
 
+            {matchPhase === 'voting' && blueScore === whiteScore && (
+                <div className="mb-8 bg-slate-900/50 rounded-xl p-6 border border-slate-700 shadow-inner">
+                    <p className="text-yellow-400 font-bold mb-6 uppercase tracking-wider text-center text-xl">🚨 Match Tied! Penalty Shootout 🚨</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                        <div>
+                            <h4 className="text-blue-400 font-bold mb-3 uppercase border-b border-blue-500/30 pb-2">Blue Team PKs</h4>
+                            <div className="space-y-2">
+                                {bluePlayers.map(pid => {
+                                    const p = players.find(x => x.id === pid);
+                                    return (
+                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded">
+                                            <span className="text-white font-bold text-sm truncate">{p?.name}</span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
+                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                        <div>
+                            <h4 className="text-white font-bold mb-3 uppercase border-b border-white/30 pb-2">White Team PKs</h4>
+                            <div className="space-y-2">
+                                {whitePlayers.map(pid => {
+                                    const p = players.find(x => x.id === pid);
+                                    return (
+                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded">
+                                            <span className="text-white font-bold text-sm truncate">{p?.name}</span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
+                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="text-center pt-4 border-t border-slate-700/50">
+                        <p className="text-slate-400 text-xs uppercase mb-3">Or fast-track and just declare a winner:</p>
+                        <div className="flex gap-4 max-w-sm mx-auto">
+                            <button 
+                                onClick={() => setPkWinner('blue')}
+                                className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'blue' ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-blue-500/50 border-blue-500/20 hover:border-blue-500/50'}`}
+                            >
+                                Blue
+                            </button>
+                            <button 
+                                onClick={() => setPkWinner('white')}
+                                className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'white' ? 'bg-slate-200 text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-500 border-white/20 hover:border-white/50'}`}
+                            >
+                                White
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )} 
+
+
             {/* Actions */}
             <div className="flex gap-4">
                 {matchPhase === 'playing' ? (
@@ -383,12 +549,21 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                         <CheckCircle size={20} /> End Match & Vote MOTM
                     </button>
                 ) : (
-                    <button
-                        onClick={handleFinalize}
-                        className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
-                    >
-                        <CheckCircle size={20} /> Finalize Match
-                    </button>
+                    <>
+                        <button
+                            onClick={handleShare}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                            title="Share Score"
+                        >
+                            <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
+                        </button>
+                        <button
+                            onClick={handleFinalize}
+                            className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                        >
+                            <CheckCircle size={20} /> Finalize Match
+                        </button>
+                    </>
                 )}
 
                 <button

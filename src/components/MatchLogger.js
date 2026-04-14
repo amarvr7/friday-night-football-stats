@@ -9,6 +9,7 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
     const [blueOwnGoals, setBlueOwnGoals] = useState(0);
     const [whiteOwnGoals, setWhiteOwnGoals] = useState(0);
     const [motm, setMotm] = useState(null);
+    const [pkWinner, setPkWinner] = useState(null);
 
     // Initialize from editing match or pre-filled teams
     React.useEffect(() => {
@@ -17,6 +18,7 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
             setSelectedPlayers(playerIds);
             setMatchData(editingMatch.stats || {});
             setMotm(editingMatch.motm || null);
+            setPkWinner(editingMatch.pkWinner || null);
             setBlueOwnGoals(editingMatch.blueOwnGoals || 0);
             setWhiteOwnGoals(editingMatch.whiteOwnGoals || 0);
         } else if (initialTeams) {
@@ -77,8 +79,14 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
 
     const handleFinalize = (e) => {
         e.preventDefault();
-        const blueWin = blueScore > whiteScore ? 1 : (blueScore === whiteScore ? 0.5 : 0);
-        const whiteWin = whiteScore > blueScore ? 1 : (whiteScore === blueScore ? 0.5 : 0);
+        let blueWin = blueScore > whiteScore ? 1 : (blueScore === whiteScore ? 0.5 : 0);
+        let whiteWin = whiteScore > blueScore ? 1 : (whiteScore === blueScore ? 0.5 : 0);
+
+        if (blueScore === whiteScore && pkWinner) {
+            blueWin = pkWinner === 'blue' ? 1 : 0;
+            whiteWin = pkWinner === 'white' ? 1 : 0;
+        }
+
         const blueClean = whiteScore === 0;
         const whiteClean = blueScore === 0;
 
@@ -94,7 +102,7 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
                 cleanSheet: isBlue ? blueClean : whiteClean
             };
         });
-        onSave(finalData, { motm, blueOwnGoals, whiteOwnGoals });
+        onSave(finalData, { motm, blueOwnGoals, whiteOwnGoals, pkWinner });
     };
 
     return (
@@ -195,8 +203,31 @@ const MatchLogger = ({ players, onSave, onCancel, initialTeams, editingMatch }) 
                         })}
                     </select>
                 </div>
-            )
-            }
+            )}
+            {blueScore === whiteScore && selectedPlayers.length > 0 && (
+                <div className="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                    <label className="block text-white text-sm font-bold mb-3 uppercase tracking-wider text-center">
+                        Match Tied! Select PK Winner
+                    </label>
+                    <div className="flex gap-4 max-w-sm mx-auto">
+                        <button 
+                            type="button"
+                            onClick={() => setPkWinner('blue')}
+                            className={`flex-1 py-3 rounded-lg font-bold border-2 transition-all ${pkWinner === 'blue' ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-blue-400 border-blue-500/30 hover:border-blue-500/50'}`}
+                        >
+                            Blue
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setPkWinner('white')}
+                            className={`flex-1 py-3 rounded-lg font-bold border-2 transition-all ${pkWinner === 'white' ? 'bg-slate-200 text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-300 border-white/30 hover:border-white/50'}`}
+                        >
+                            White
+                        </button>
+                    </div>
+                </div>
+            )}
+
 
             <div className="flex gap-4"><button type="submit" onClick={handleFinalize} disabled={selectedPlayers.length === 0} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg disabled:opacity-50">Save Match Result</button><button type="button" onClick={onCancel} className="px-6 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-600">Cancel</button></div>
         </div >
