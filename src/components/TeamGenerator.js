@@ -195,6 +195,13 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                     Click "AI Generate" to split the {confirmedPlayers.length} confirmed players.
                 </div>
             )}
+
+            {teamBlue.length > 0 && (
+                <div className="text-center text-slate-400 mt-8 text-sm max-w-3xl mx-auto bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
+                    <span className="font-bold text-slate-300 block mb-1">Why are these teams fair?</span>
+                    The AI Generate algorithm uses a snake draft pattern based on each player's dynamic rating. The rating is calculated from a blend of overall historical stats, recent performances, and current streaks, ensuring perfectly balanced teams.
+                </div>
+            )}
         </div>
     );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowDown, ArrowUp, BarChart2, Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BarChart2, Search, Plus, Edit2, Trash2, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
 
 const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, onEditMatch, onDeleteMatch, currentUserRole }) => {
@@ -78,6 +78,52 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
     }, [processedPlayers, sortField, sortDesc, searchTerm]);
 
     const [viewMode, setViewMode] = useState('players'); // 'players' or 'matches'
+    const [expandedMatches, setExpandedMatches] = useState({});
+
+    const toggleMatch = (id) => {
+        setExpandedMatches(prev => ({...prev, [id]: !prev[id]}));
+    };
+
+    const handleShareMatch = (m, blueScore, whiteScore, blueEvents, whiteEvents) => {
+        const date = m.date ? new Date(m.date.seconds * 1000).toLocaleDateString() : 'Unknown Date';
+        let text = `🏆 Friday Night Match Result - ${date} 🏆\n\n🔵 Blue: ${blueScore}\n⚪️ White: ${whiteScore}\n`;
+
+        const formatEvents = (events) => {
+            if (!events || events.length === 0) return 'None';
+            return events.map(e => {
+                let symbol = e.type === 'goal' ? '⚽' : (e.type === 'assist' ? '👟' : '❌');
+                let countStr = e.count > 1 ? ` (x${e.count})` : '';
+                return `${symbol} ${e.player}${countStr}`;
+            }).join('\n');
+        };
+
+        if (blueEvents && blueEvents.length > 0) {
+            text += `\n🔵 Blue Events:\n${formatEvents(blueEvents)}\n`;
+        }
+        if (whiteEvents && whiteEvents.length > 0) {
+            text += `\n⚪️ White Events:\n${formatEvents(whiteEvents)}\n`;
+        }
+        
+        let motmName = m.motm ? players.find(p => p.id === m.motm)?.name : null;
+        if (motmName) {
+            text += `\n⭐️ MOTM: ${motmName}\n`;
+        }
+
+        if (navigator.share) {
+            navigator.share({
+                title: 'Match Result',
+                text: text
+            }).catch(err => {
+                if (err?.name !== 'AbortError') {
+                    navigator.clipboard.writeText(text);
+                    alert("Match result copied to clipboard!");
+                }
+            });
+        } else {
+            navigator.clipboard.writeText(text);
+            alert("Match result copied to clipboard!");
+        }
+    };
 
     const handleSort = (field) => {
         if (sortField === field) setSortDesc(!sortDesc);
@@ -209,66 +255,100 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             const whiteEvents = getEvents('white');
 
                             return (
-                                <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 relative">
-                                    {currentUserRole === 'admin' && (
-                                        <div className="absolute top-2 right-2 flex gap-2">
-                                            <button onClick={() => onEditMatch(m)} className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-700 hover:border-slate-500 transition-colors" title="Edit Match">
-                                                <Edit2 size={14} />
+                                    <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 relative">
+                                        <div className="absolute top-2 right-2 flex gap-2 z-10">
+                                            <button onClick={() => handleShareMatch(m, blueScore, whiteScore, blueEvents, whiteEvents)} className="p-1.5 bg-slate-800 text-blue-400 hover:text-blue-300 rounded border border-slate-700 hover:border-blue-500 transition-colors" title="Share Match">
+                                                <Share2 size={14} />
                                             </button>
-                                            <button onClick={() => onDeleteMatch(m)} className="p-1.5 bg-slate-800 text-red-400/70 hover:text-red-400 rounded border border-slate-700 hover:border-red-500 transition-colors" title="Delete Match">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between items-center mb-4 pt-2">
-                                        <div className="text-slate-500 text-xs font-bold uppercase w-20">{date}</div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="text-right">
-                                                <span className="text-blue-400 font-bold uppercase text-xs block">Blue</span>
-                                                <span className="text-2xl font-black text-white">{blueScore}</span>
-                                            </div>
-                                            <div className="text-slate-600 font-black text-lg">VS</div>
-                                            <div className="text-left">
-                                                <span className="text-slate-300 font-bold uppercase text-xs block">White</span>
-                                                <span className="text-2xl font-black text-white">{whiteScore}</span>
-                                            </div>
-                                        </div>
-                                        <div className="w-20 text-right">
-                                            {m.motm && (
-                                                <div className="inline-block text-center">
-                                                    <span className="text-[10px] text-yellow-500 font-bold block uppercase">MOTM</span>
-                                                    <span className="text-xs text-white font-bold max-w-[80px] truncate block">
-                                                        {players.find(p => p.id === m.motm)?.name || 'Unknown'}
-                                                    </span>
-                                                </div>
+                                            {currentUserRole === 'admin' && (
+                                                <>
+                                                    <button onClick={() => onEditMatch(m)} className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-700 hover:border-slate-500 transition-colors" title="Edit Match">
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button onClick={() => onDeleteMatch(m)} className="p-1.5 bg-slate-800 text-red-400/70 hover:text-red-400 rounded border border-slate-700 hover:border-red-500 transition-colors" title="Delete Match">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </>
                                             )}
                                         </div>
-                                    </div>
+                                        <div className="flex justify-between items-center mb-4 pt-6 sm:pt-4 cursor-pointer" onClick={() => toggleMatch(m.id)}>
+                                            <div className="w-1/3 text-left pl-1">
+                                                <div className="text-slate-500 text-xs font-bold uppercase mb-1">{date}</div>
+                                                {m.motm && (
+                                                    <div className="inline-block text-left">
+                                                        <span className="text-[10px] text-yellow-500 font-bold block uppercase">MOTM</span>
+                                                        <span className="text-xs text-white font-bold max-w-[90px] sm:max-w-[120px] truncate block">
+                                                            {players.find(p => p.id === m.motm)?.name || 'Unknown'}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="w-1/3 flex items-center justify-center gap-4 sm:gap-6">
+                                                <div className="text-right">
+                                                    <span className="text-blue-400 font-bold uppercase text-xs block">Blue</span>
+                                                    <span className="text-2xl font-black text-white">{blueScore}</span>
+                                                </div>
+                                                <div className="text-slate-600 font-black text-lg">VS</div>
+                                                <div className="text-left">
+                                                    <span className="text-slate-300 font-bold uppercase text-xs block">White</span>
+                                                    <span className="text-2xl font-black text-white">{whiteScore}</span>
+                                                </div>
+                                            </div>
+                                            <div className="w-1/3 flex justify-end pr-2 text-slate-500">
+                                                {expandedMatches[m.id] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                            </div>
+                                        </div>
 
-                                    {/* Match Events */}
-                                    <div className="flex justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-3 mt-3">
-                                        <div className="w-1/2 pr-2">
-                                            {blueEvents.map((e, idx) => (
-                                                <div key={idx} className="flex justify-end gap-1 mb-1">
-                                                    <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
-                                                    {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                </div>
-                                            ))}
+                                        {/* Match Events */}
+                                        <div className="flex justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-3 mt-3">
+                                            <div className="w-1/2 pr-2">
+                                                {blueEvents.map((e, idx) => (
+                                                    <div key={idx} className="flex justify-end gap-1 mb-1">
+                                                        <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
+                                                        {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="w-1/2 pl-2 border-l border-slate-800">
+                                                {whiteEvents.map((e, idx) => (
+                                                    <div key={idx} className="flex justify-start gap-1 mb-1">
+                                                        {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="w-1/2 pl-2 border-l border-slate-800">
-                                            {whiteEvents.map((e, idx) => (
-                                                <div key={idx} className="flex justify-start gap-1 mb-1">
-                                                    {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                    <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
+
+                                        {/* Expanded Lineups */}
+                                        {expandedMatches[m.id] && (
+                                            <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap gap-4 animate-in slide-in-from-top-2 duration-200">
+                                                <div className="flex-1 min-w-[120px]">
+                                                    <div className="text-xs font-bold text-blue-400 uppercase mb-2 border-b border-blue-500/20 pb-1">Blue Team</div>
+                                                    <div className="flex flex-col gap-1">
+                                                        {pIds.filter(pid => m.stats[pid].team === 'blue').map(pid => (
+                                                            <div key={pid} className="text-xs text-slate-300 font-medium">
+                                                                {players.find(p => p.id === pid)?.name || 'Unknown'}
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <div className="flex-1 min-w-[120px]">
+                                                    <div className="text-xs font-bold text-white uppercase mb-2 border-b border-white/20 pb-1">White Team</div>
+                                                    <div className="flex flex-col gap-1">
+                                                        {pIds.filter(pid => m.stats[pid].team === 'white').map(pid => (
+                                                            <div key={pid} className="text-xs text-slate-300 font-medium">
+                                                                {players.find(p => p.id === pid)?.name || 'Unknown'}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
                             );
                         })}
                         {filteredMatches.length === 0 && <div className="text-center text-slate-500 mt-8">No matches recorded yet.</div>}

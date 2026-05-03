@@ -14,6 +14,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     // View state: 'playing' or 'voting'
     const [matchPhase, setMatchPhase] = useState('playing');
     const [pkAttempts, setPkAttempts] = useState({});
+    const [goalAnimation, setGoalAnimation] = useState(null);
     
     // Fallback if they wanted to bypass the tracker
     const [pkWinner, setPkWinner] = useState(null);
@@ -94,6 +95,12 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     const updateStat = (playerId, field, increment) => {
         if (matchPhase !== 'playing') return;
+
+        if (field === 'goals' && increment > 0) {
+            setGoalAnimation(playerId);
+            setTimeout(() => setGoalAnimation(null), 1500);
+        }
+
         setMatchData(prev => ({
             ...prev,
             [playerId]: {
@@ -243,7 +250,24 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     const whitePlayers = Object.keys(matchData).filter(pid => matchData[pid].team === 'white');
 
     return (
-        <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
+        <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 relative overflow-hidden">
+            {/* Goal Animation Overlay */}
+            {goalAnimation && (
+                <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="animate-bounce flex flex-col items-center">
+                        <div className="text-8xl mb-4 shadow-black drop-shadow-2xl">⚽️</div>
+                        <h2 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 uppercase tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
+                            GOAL!
+                        </h2>
+                        {goalAnimation && players.find(p => p.id === goalAnimation) && (
+                             <p className="mt-4 text-2xl font-bold text-white drop-shadow-xl bg-black/50 px-6 py-2 rounded-full border border-white/20">
+                                 {players.find(p => p.id === goalAnimation)?.name}
+                             </p>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Sub Modal */}
             {subModalTeam && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setSubModalTeam(null)}>
