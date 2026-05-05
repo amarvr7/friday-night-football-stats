@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shirt, Shuffle, RefreshCw, Send, Activity, Trash2 } from 'lucide-react';
+import { Shirt, Shuffle, RefreshCw, Send, Activity, Trash2, Share2 } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
@@ -127,6 +127,40 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
         }
     };
 
+    const handleShare = async () => {
+        if (teamBlue.length === 0 || teamWhite.length === 0) return;
+
+        const blueAvg = Math.round(teamBlue.reduce((acc, p) => acc + getDynamicRating(p), 0) / teamBlue.length) || 0;
+        const whiteAvg = Math.round(teamWhite.reduce((acc, p) => acc + getDynamicRating(p), 0) / teamWhite.length) || 0;
+
+        const blueText = `🔵 BLUE TEAM (Avg: ${blueAvg})\n` + teamBlue.map(p => `- ${p.name} (${getDynamicRating(p)})`).join('\n');
+        const whiteText = `⚪️ WHITE TEAM (Avg: ${whiteAvg})\n` + teamWhite.map(p => `- ${p.name} (${getDynamicRating(p)})`).join('\n');
+
+        const shareText = `🏟️ Friday Night Football Teams\n\n${blueText}\n\n${whiteText}`;
+
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: 'Match Teams',
+                    text: shareText
+                });
+            } else {
+                await navigator.clipboard.writeText(shareText);
+                alert("Teams copied to clipboard!");
+            }
+        } catch (err) {
+            console.error("Error sharing:", err);
+            if (err.name !== 'AbortError') {
+                try {
+                    await navigator.clipboard.writeText(shareText);
+                    alert("Teams copied to clipboard!");
+                } catch (clipboardErr) {
+                    console.error("Clipboard failed too", clipboardErr);
+                }
+            }
+        }
+    };
+
     const TeamColumn = ({ title, colorClass, teamList, setSelf, setOther }) => (
         <div className={`flex-1 rounded-xl border ${colorClass} bg-slate-900/50 p-4`}>
             <h3 className={`text-lg font-bold mb-4 uppercase text-center border-b pb-2 ${colorClass.replace('border', 'text')}`}>{title}</h3>
@@ -174,6 +208,9 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
 
                     {teamBlue.length > 0 && (
                         <>
+                            <button onClick={handleShare} className="bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
+                                <Share2 size={16} /> Share
+                            </button>
                             <button onClick={() => onLogMatch({ blue: teamBlue, white: teamWhite }, 'live-match')} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
                                 <Activity size={16} /> Start Live Match
                             </button>
