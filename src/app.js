@@ -34,7 +34,7 @@ import MatchLogger from './components/MatchLogger';
 import LiveMatchTracker from './components/LiveMatchTracker';
 import LegacyImporter from './components/LegacyImporter';
 import TeamGenerator from './components/TeamGenerator';
-import PlayerCard from './components/PlayerCard';
+import ModernPlayerProfile from './components/ModernPlayerProfile';
 import RecordsView from './components/RecordsView';
 
 // --- Main Application ---
@@ -348,7 +348,7 @@ export default function FridayNightFUT() {
             {!showRatingsModal ? (
               <>
                 <div className="mb-6">
-                  <PlayerCard
+                  <ModernPlayerProfile
                     player={selectedPlayerForEdit}
                     rank={sortedPlayers.findIndex(p => p.id === selectedPlayerForEdit.id) + 1}
                     onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()}

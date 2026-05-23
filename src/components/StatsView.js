@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowDown, ArrowUp, BarChart2, Search, Plus, Edit2, Trash2, Share2, ChevronDown, ChevronUp } from 'lucide-react';
 import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
+import LeaderboardGrid from './LeaderboardGrid';
 
 const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, onEditMatch, onDeleteMatch, currentUserRole }) => {
     const [sortField, setSortField] = useState('overall');
@@ -77,8 +78,14 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
         return data;
     }, [processedPlayers, sortField, sortDesc, searchTerm]);
 
-    const [viewMode, setViewMode] = useState('players'); // 'players' or 'matches'
+    const [viewMode, setViewMode] = useState('leaderboards'); // 'leaderboards', 'players' or 'matches'
     const [expandedMatches, setExpandedMatches] = useState({});
+
+    const handleNavigateToFullList = (field, ascending) => {
+        setSortField(field);
+        setSortDesc(!ascending);
+        setViewMode('players');
+    };
 
     const toggleMatch = (id) => {
         setExpandedMatches(prev => ({...prev, [id]: !prev[id]}));
@@ -147,13 +154,14 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                         <BarChart2 className="text-blue-400" /> Stats
                     </h2>
                     <div className="flex gap-2">
-                        <div className="flex bg-slate-900 rounded-lg p-1">
-                            <button onClick={() => setViewMode('players')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${viewMode === 'players' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Players</button>
-                            <button onClick={() => setViewMode('matches')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${viewMode === 'matches' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Matches</button>
+                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50">
+                            <button onClick={() => setViewMode('leaderboards')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'leaderboards' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Leaderboards</button>
+                            <button onClick={() => setViewMode('players')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'players' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Players Table</button>
+                            <button onClick={() => setViewMode('matches')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'matches' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Match History</button>
                         </div>
-                        <div className="flex bg-slate-900 rounded-lg p-1">
-                            <button onClick={() => setFilterYear('all')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === 'all' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
-                            <button onClick={() => setFilterYear('2026')} className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${filterYear === '2026' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
+                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50">
+                            <button onClick={() => setFilterYear('all')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${filterYear === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
+                            <button onClick={() => setFilterYear('2026')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${filterYear === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
                         </div>
                     </div>
                 </div>
@@ -167,7 +175,15 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
             </div>
 
             <div className="overflow-auto flex-1">
-                {viewMode === 'players' ? (
+                {viewMode === 'leaderboards' ? (
+                    <LeaderboardGrid 
+                        players={players} 
+                        matches={matches} 
+                        filterYear={filterYear} 
+                        onSelectPlayer={onSelectPlayer} 
+                        onNavigateToFullList={handleNavigateToFullList} 
+                    />
+                ) : viewMode === 'players' ? (
                     <>
                         <table className="w-full text-sm text-slate-300">
                             <thead className="bg-slate-900 text-slate-500 uppercase font-bold text-xs sticky top-0 z-10">
@@ -188,23 +204,41 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-700/50">
-                                {sortedData.map(p => (
-                                    <tr key={p.id} onClick={() => onSelectPlayer(p)} className="hover:bg-slate-700/50 cursor-pointer transition-colors">
-                                        <td className="p-3 font-bold text-white">{p.name}</td>
-                                        <td className="p-3">{p.gamesPlayed}</td>
-                                        <td className="p-3 text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
-                                        <td className="p-3">{p.winRate.toFixed(1)}%</td>
-                                        <td className="p-3 text-white">{p.goals}</td>
-                                        <td className="p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
-                                        {filterYear === '2026' && <td className="p-3">{p.assists}</td>}
-                                        {filterYear === '2026' && <td className="p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
-                                        {filterYear === '2026' && <td className="p-3 text-yellow-400">{p.cleanSheets}</td>}
-                                        {filterYear === '2026' && <td className="p-3">{p.goalsFor}</td>}
-                                        {filterYear === '2026' && <td className="p-3">{p.goalsAgainst}</td>}
-                                        <td className="p-3 text-orange-400 font-bold">{p.motms || 0}</td>
-                                        <td className="p-3 font-bold text-yellow-500">{p.overall}</td>
-                                    </tr>
-                                ))}
+                                {sortedData.map(p => {
+                                    const initials = p.name ? p.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??';
+                                    return (
+                                        <tr key={p.id} onClick={() => onSelectPlayer(p)} className="hover:bg-slate-700/50 cursor-pointer transition-colors">
+                                            <td className="p-3 font-bold text-white flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full border border-slate-750 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                                                    {p.photoUrl ? (
+                                                        <img 
+                                                            src={p.photoUrl} 
+                                                            alt={p.name} 
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-slate-400 font-mono tracking-wider">
+                                                            {initials}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span>{p.name}</span>
+                                            </td>
+                                            <td className="p-3">{p.gamesPlayed}</td>
+                                            <td className="p-3 text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
+                                            <td className="p-3">{p.winRate.toFixed(1)}%</td>
+                                            <td className="p-3 text-white">{p.goals}</td>
+                                            <td className="p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
+                                            {filterYear === '2026' && <td className="p-3">{p.assists}</td>}
+                                            {filterYear === '2026' && <td className="p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
+                                            {filterYear === '2026' && <td className="p-3 text-yellow-400">{p.cleanSheets}</td>}
+                                            {filterYear === '2026' && <td className="p-3">{p.goalsFor}</td>}
+                                            {filterYear === '2026' && <td className="p-3">{p.goalsAgainst}</td>}
+                                            <td className="p-3 text-orange-400 font-bold">{p.motms || 0}</td>
+                                            <td className="p-3 font-bold text-yellow-500">{p.overall}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                         {sortedData.length === 0 && <div className="p-8 text-center text-slate-500">No players found.</div>}
