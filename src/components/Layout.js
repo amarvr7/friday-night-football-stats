@@ -6,33 +6,33 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
             {/* Header */}
             <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl">
-                <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <Trophy className="text-yellow-500" />
-                        <h1 className="text-xl font-black uppercase tracking-widest text-white italic">
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                        <Trophy className="text-yellow-500" size={20} />
+                        <h1 className="text-base sm:text-xl font-black uppercase tracking-widest text-white italic">
                             Friday<span className="text-green-500">FUT</span>
                         </h1>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                         {authStatus.role === 'admin' && (
-                            <div className="bg-yellow-500 text-slate-900 text-xs font-bold px-2 py-1 rounded">
+                            <div className="bg-yellow-500 text-slate-900 text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
                                 ADMIN
                             </div>
                         )}
                         {authStatus.role === 'admin' && (
                             <button
                                 onClick={hasUpcomingTeams ? handleStartLiveMatch : () => setView('add-match')}
-                                title={hasUpcomingTeams ? "Start Live Match" : "Log Historic Match"}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition-all shadow-lg ${hasUpcomingTeams
+                                title={hasUpcomingTeams ? "Start Live Match" : "Quick Stats Entry"}
+                                className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1 transition-all shadow-lg min-h-[36px] ${hasUpcomingTeams
                                     ? 'bg-green-500 hover:bg-green-400 text-white animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(34,197,94,0.5)]'
                                     : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
                                     }`}
                             >
-                                {hasUpcomingTeams ? <Activity size={16} /> : <Plus size={16} />}
-                                {hasUpcomingTeams ? 'Live Match' : 'Match'}
+                                {hasUpcomingTeams ? <Activity size={14} /> : <Plus size={14} />}
+                                <span className="hidden xs:inline">{hasUpcomingTeams ? 'Live' : 'Stats'}</span>
                             </button>
                         )}
-                        <button onClick={handleLogout} className="text-slate-500 hover:text-white ml-2">
+                        <button onClick={handleLogout} className="text-slate-500 hover:text-white ml-1 sm:ml-2 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center">
                             <Lock size={16} />
                         </button>
                     </div>
@@ -40,59 +40,59 @@ export default function Layout({ children, view, setView, authStatus, handleLogo
             </header>
 
             {/* Main Content */}
-            <main className="max-w-4xl mx-auto px-4 py-6">
+            <main className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
                 {children}
             </main>
 
             {/* Bottom Navigation */}
             <nav className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 pb-safe z-40">
-                <div className="flex justify-around items-center max-w-4xl mx-auto">
+                <div className="flex justify-around items-center max-w-4xl mx-auto w-full px-1">
                     <button
                         onClick={() => setView('dashboard')}
-                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'dashboard' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'dashboard' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <Trophy size={20} />
-                        <span className="text-[10px] font-bold mt-1 uppercase">Home</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">Home</span>
                     </button>
                     <button
                         onClick={() => setView('records')}
-                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'records' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'records' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <Trophy size={20} />
-                        <span className="text-[10px] font-bold mt-1 uppercase">Records</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">Records</span>
                     </button>
                     <button
                         onClick={() => setView('stats')}
-                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'stats' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'stats' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <BarChart2 size={20} />
-                        <span className="text-[10px] font-bold mt-1 uppercase">Stats</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">Stats</span>
                     </button>
                     <button
                         onClick={() => setView('players')}
-                        className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'players' ? 'text-green-400' : 'text-slate-500'}`}
+                        className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'players' ? 'text-green-400' : 'text-slate-500'}`}
                     >
                         <Users size={20} />
-                        <span className="text-[10px] font-bold mt-1 uppercase">Squad</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">Squad</span>
                     </button>
                     {authStatus.role === 'admin' && (
                         <>
                             <button
                                 onClick={() => setView('teams')}
-                                className={`flex flex-col items-center py-3 px-4 md:px-6 ${view === 'teams' ? 'text-green-400' : 'text-slate-500'}`}
+                                className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'teams' ? 'text-green-400' : 'text-slate-500'}`}
                             >
                                 <Shirt size={20} />
-                                <span className="text-[10px] font-bold mt-1 uppercase">Sheet</span>
+                                <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">Sheet</span>
                             </button>
                             <button
                                 onClick={hasUpcomingTeams ? handleStartLiveMatch : () => setView('add-match')}
-                                className={`flex flex-col items-center py-3 px-4 md:px-6 transition-colors ${view === 'add-match' || view === 'live-match'
+                                className={`flex flex-col items-center py-2.5 sm:py-3 px-1.5 sm:px-4 md:px-6 transition-colors min-h-[56px] min-w-[64px] ${view === 'add-match' || view === 'live-match'
                                     ? 'text-green-400'
                                     : (hasUpcomingTeams ? 'text-green-500 animate-pulse' : 'text-slate-500 hover:text-slate-300')
                                     }`}
                             >
-                                <Activity size={20} />
-                                <span className="text-[10px] font-bold mt-1 uppercase">Log</span>
+                                {hasUpcomingTeams ? <Activity size={20} /> : <Plus size={20} />}
+                                <span className="text-[9px] sm:text-[10px] font-bold mt-1 uppercase">{hasUpcomingTeams ? 'Live' : 'Stats'}</span>
                             </button>
                         </>
                     )}

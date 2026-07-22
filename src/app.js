@@ -31,6 +31,7 @@ import DashboardView from './components/DashboardView';
 import SquadView from './components/SquadView';
 import StatsView from './components/StatsView';
 import MatchLogger from './components/MatchLogger';
+import StatsLogger from './components/StatsLogger';
 import LiveMatchTracker from './components/LiveMatchTracker';
 import LegacyImporter from './components/LegacyImporter';
 import TeamGenerator from './components/TeamGenerator';
@@ -48,6 +49,7 @@ export default function FridayNightFUT() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [matchSetup, setMatchSetup] = useState(null); // Pre-filled match data from Team Generator
   const [editingMatch, setEditingMatch] = useState(null); // State for editing an existing match
+  const [showGamePicker, setShowGamePicker] = useState(false); // Big Night: choose Game 1 or Game 2
 
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
@@ -208,6 +210,21 @@ export default function FridayNightFUT() {
     setShowRatingsModal(false);
   };
 
+  const handleStatChange = async (statName, change) => {
+    if (!selectedPlayerForEdit) return;
+    const currentValue = selectedPlayerForEdit[statName] || 0;
+    const newValue = Math.max(0, currentValue + change);
+    
+    try {
+      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
+      await updateDoc(playerRef, { [statName]: newValue });
+      setSelectedPlayerForEdit({ ...selectedPlayerForEdit, [statName]: newValue });
+    } catch (err) {
+      console.error("Stat update failed", err);
+      alert("Failed to update stat: " + err.message);
+    }
+  };
+
   const handleRemovePhoto = async () => {
     if (!selectedPlayerForEdit) return;
     try {
@@ -236,12 +253,31 @@ export default function FridayNightFUT() {
     }
   };
 
+  const startLiveGame = (gameNumber) => {
+    const toPlayers = (ids) => (ids || []).map(id => players.find(p => p.id === id)).filter(Boolean);
+
+    if (gameNumber === 2) {
+      // Game 2 rides the blue/white slots with Red/Green display labels
+      setMatchSetup({
+        blue: toPlayers(upcomingTeams.red),
+        white: toPlayers(upcomingTeams.green),
+        labels: { blue: 'Red', white: 'Green' }
+      });
+    } else {
+      setMatchSetup({ blue: toPlayers(upcomingTeams.blue), white: toPlayers(upcomingTeams.white) });
+    }
+    setShowGamePicker(false);
+    setView('live-match');
+  };
+
   const handleStartLiveMatch = () => {
     if (upcomingTeams && upcomingTeams.blue && upcomingTeams.white) {
-      const bluePlayers = upcomingTeams.blue.map(id => players.find(p => p.id === id)).filter(Boolean);
-      const whitePlayers = upcomingTeams.white.map(id => players.find(p => p.id === id)).filter(Boolean);
-      setMatchSetup({ blue: bluePlayers, white: whitePlayers });
-      setView('live-match');
+      if (upcomingTeams.mode === 'quad') {
+        // Big Night: two games published — let the admin pick which one goes live
+        setShowGamePicker(true);
+        return;
+      }
+      startLiveGame(1);
     } else {
       setView('add-match');
     }
@@ -278,6 +314,13 @@ export default function FridayNightFUT() {
       )}
 
       {view === 'add-match' && authStatus.role === 'admin' && (
+        <StatsLogger
+          players={players}
+          onBack={() => setView('dashboard')}
+        />
+      )}
+
+      {view === 'log-match' && authStatus.role === 'admin' && (
         <MatchLogger
           players={players}
           onSave={handleSaveMatch}
@@ -304,7 +347,7 @@ export default function FridayNightFUT() {
           playerStreaks={playerStreaks}
           onSelectPlayer={(p) => setSelectedPlayerForEdit(p)}
           onAddMatch={() => setView('add-match')}
-          onEditMatch={(m) => { setEditingMatch(m); setView('add-match'); }}
+          onEditMatch={(m) => { setEditingMatch(m); setView('log-match'); }}
           onDeleteMatch={handleDeleteMatch}
           currentUserRole={authStatus.role}
         />
@@ -336,8 +379,8 @@ export default function FridayNightFUT() {
 
       {/* MODALS */}
       {selectedPlayerForEdit && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPlayerForEdit(null)}>
-          <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={() => setSelectedPlayerForEdit(null)}>
+          <div className="relative max-w-sm w-full my-8" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setSelectedPlayerForEdit(null)}
               className="absolute -top-10 right-0 text-white/80 hover:text-white p-2 flex items-center gap-1"
@@ -353,6 +396,7 @@ export default function FridayNightFUT() {
                     rank={sortedPlayers.findIndex(p => p.id === selectedPlayerForEdit.id) + 1}
                     onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()}
                     canEdit={authStatus.role === 'admin'}
+                    onStatChange={authStatus.role === 'admin' ? handleStatChange : null}
                     streaks={playerStreaks[selectedPlayerForEdit.id]}
                     onEditRatings={() => {
                       setRatingsForm(selectedPlayerForEdit.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
@@ -430,6 +474,36 @@ export default function FridayNightFUT() {
       )}
 
       {showImporter && authStatus.role === 'admin' && <LegacyImporter onComplete={() => { setShowImporter(false); setView('dashboard'); }} onCancel={() => setShowImporter(false)} />}
+
+      {/* Big Night Game Picker */}
+      {showGamePicker && authStatus.role === 'admin' && upcomingTeams && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setShowGamePicker(false)}>
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full p-6 border border-slate-700 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">Which game is going live?</h3>
+              <button onClick={() => setShowGamePicker(false)} className="text-slate-500 hover:text-white p-1" aria-label="Close game picker">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => startLiveGame(1)}
+                className="w-full bg-slate-900 hover:bg-slate-700 border border-blue-500/40 rounded-xl p-4 text-left transition-colors"
+              >
+                <span className="text-xs text-slate-500 font-bold uppercase block mb-1">Game 1 — Kickoff First</span>
+                <span className="font-black text-lg"><span className="text-blue-400">Blue</span> <span className="text-slate-500">vs</span> <span className="text-white">White</span></span>
+              </button>
+              <button
+                onClick={() => startLiveGame(2)}
+                className="w-full bg-slate-900 hover:bg-slate-700 border border-red-500/40 rounded-xl p-4 text-left transition-colors"
+              >
+                <span className="text-xs text-slate-500 font-bold uppercase block mb-1">Game 2 — Straight After</span>
+                <span className="font-black text-lg"><span className="text-red-400">Red</span> <span className="text-slate-500">vs</span> <span className="text-green-400">Green</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedPlayerForEdit && (

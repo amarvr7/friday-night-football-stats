@@ -93,12 +93,6 @@ const LeaderboardGrid = ({
         { id: 'goalsAgainst', label: 'Goals Against', sortField: 'goalsAgainst', type: 'count_asc', ascending: true }
     ];
 
-    // Helper for circular avatar initials
-    const getInitials = (name) => {
-        if (!name) return '??';
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    };
-
     // Render ranks with customized styles
     const renderRankBadge = (rank) => {
         if (rank === 1) return <span className="w-5 h-5 flex items-center justify-center rounded-full bg-yellow-500/10 border border-yellow-500 text-yellow-500 font-extrabold text-[10px]">1</span>;
@@ -108,7 +102,7 @@ const LeaderboardGrid = ({
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 p-3 sm:p-4">
             {categories.map(cat => {
                 // 4. Sort and filter data for this specific category inline (no useMemo to respect Hook Rules)
                 let dataset = playersData.filter(p => p.gamesPlayed > 0);
@@ -133,28 +127,28 @@ const LeaderboardGrid = ({
                 return (
                     <div 
                         key={cat.id} 
-                        className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-slate-700/80 transition-all flex flex-col h-[320px]"
+                        className="bg-slate-900/60 backdrop-blur-md border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-slate-700/80 transition-all flex flex-col h-[280px] sm:h-[320px]"
                     >
                         {/* Card Header (Clicking routes to full list) */}
                         <div 
                             onClick={() => onNavigateToFullList(cat.sortField, cat.ascending || false)}
-                            className="bg-gradient-to-r from-slate-950/80 to-slate-900/80 p-4 border-b border-slate-800/80 flex justify-between items-center cursor-pointer group/header hover:from-purple-950/30 hover:to-indigo-950/30 transition-all"
+                            className="bg-gradient-to-r from-slate-950/80 to-slate-900/80 p-3 sm:p-4 border-b border-slate-800/80 flex justify-between items-center cursor-pointer group/header hover:from-purple-950/30 hover:to-indigo-950/30 transition-all min-h-[60px]"
                         >
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-slate-800/80 rounded-xl border border-slate-750">
+                            <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
+                                <div className="p-1.5 sm:p-2 bg-slate-800/80 rounded-xl border border-slate-750 flex-shrink-0">
                                     {getIcon(cat.id)}
                                 </div>
-                                <div>
-                                    <h3 className="text-white font-black text-sm uppercase tracking-wider">
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-white font-black text-xs sm:text-sm uppercase tracking-wider truncate">
                                         {cat.label}
                                     </h3>
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                                    <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest">
                                         {filterYear === '2026' ? '2026 Season' : 'All-Time'}
                                     </span>
                                 </div>
                             </div>
-                            <div className="text-slate-500 group-hover/header:text-purple-400 group-hover/header:translate-x-1 transition-all">
-                                <ArrowRight size={18} />
+                            <div className="text-slate-500 group-hover/header:text-purple-400 group-hover/header:translate-x-1 transition-all flex-shrink-0">
+                                <ArrowRight size={16} />
                             </div>
                         </div>
 
@@ -172,35 +166,29 @@ const LeaderboardGrid = ({
                                     <div 
                                         key={player.id}
                                         onClick={() => onSelectPlayer(player)}
-                                        className="flex items-center justify-between py-2.5 px-4 hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                        className="flex items-center justify-between py-2 sm:py-2.5 px-3 sm:px-4 hover:bg-slate-800/30 cursor-pointer transition-colors min-h-[48px]"
                                     >
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                                             {/* Rank */}
                                             {renderRankBadge(idx + 1)}
 
                                             {/* Circular Logo/Avatar */}
-                                            <div className="w-8 h-8 rounded-full border border-slate-750 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
-                                                {player.photoUrl ? (
-                                                    <img 
-                                                        src={player.photoUrl} 
-                                                        alt={player.name} 
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <span className="text-[9px] font-black text-slate-400 font-mono tracking-wider">
-                                                        {getInitials(player.name)}
-                                                    </span>
-                                                )}
+                                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-slate-750 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                                                <img 
+                                                    src={player.photoUrl || '/logo.png'} 
+                                                    alt={player.name} 
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
 
                                             {/* Player Name */}
-                                            <span className="text-slate-200 font-bold text-sm hover:text-white transition-colors truncate max-w-[120px] sm:max-w-[150px]">
+                                            <span className="text-slate-200 font-bold text-xs sm:text-sm hover:text-white transition-colors truncate">
                                                 {player.name}
                                             </span>
                                         </div>
 
                                         {/* Value */}
-                                        <span className="text-cyan-400 font-black text-base font-mono">
+                                        <span className="text-cyan-400 font-black text-sm sm:text-base font-mono flex-shrink-0 ml-2">
                                             {displayVal}
                                         </span>
                                     </div>
@@ -208,7 +196,7 @@ const LeaderboardGrid = ({
                             })}
 
                             {topPlayers.length === 0 && (
-                                <div className="h-full flex items-center justify-center text-slate-500 text-xs font-bold py-12">
+                                <div className="h-full flex items-center justify-center text-slate-500 text-[10px] sm:text-xs font-bold py-8 sm:py-12">
                                     No qualifying player data.
                                 </div>
                             )}

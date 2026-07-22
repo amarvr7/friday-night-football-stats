@@ -7,7 +7,7 @@ import SEED_DATA from '../utils/seedData';
 export default function AdminTools({ user, players, availableLegends, setShowImporter, handleSeedData }) {
     const [newPlayerName, setNewPlayerName] = useState('');
     const [quickAddPlayer, setQuickAddPlayer] = useState('');
-
+    
     const handleAddPlayer = async (e) => {
         e.preventDefault();
         if (!newPlayerName.trim() || !user) return;
@@ -131,7 +131,9 @@ export default function AdminTools({ user, players, availableLegends, setShowImp
                 </form>
             </div>
 
-            <div className="border-t border-slate-800 pt-4">
+            <p className="text-xs text-slate-500 mt-4 italic">Tip: Typing a Legend's name in the "Type new name" box will also automatically pull their stats!</p>
+
+            <div className="border-t border-slate-800 pt-4 mt-6">
                 <h3 className="text-sm font-bold text-red-500 uppercase mb-3 flex items-center gap-2"><AlertTriangle size={16} /> Danger Zone</h3>
                 <button
                     onClick={handleResetData}
@@ -140,8 +142,6 @@ export default function AdminTools({ user, players, availableLegends, setShowImp
                     <Trash2 size={18} /> Reset Database (Delete All Data)
                 </button>
             </div>
-
-            <p className="text-xs text-slate-500 mt-4 italic">Tip: Typing a Legend's name in the "Type new name" box will also automatically pull their stats!</p>
         </div>
     );
 }

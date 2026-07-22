@@ -148,20 +148,20 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
 
     return (
         <div className="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 flex flex-col h-full max-h-[80vh]">
-            <div className="p-4 border-b border-slate-700">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <BarChart2 className="text-blue-400" /> Stats
+            <div className="p-3 sm:p-4 border-b border-slate-700">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3">
+                    <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                        <BarChart2 className="text-blue-400" size={20} /> Stats
                     </h2>
-                    <div className="flex gap-2">
-                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50">
-                            <button onClick={() => setViewMode('leaderboards')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'leaderboards' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Leaderboards</button>
-                            <button onClick={() => setViewMode('players')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'players' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Players Table</button>
-                            <button onClick={() => setViewMode('matches')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'matches' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Match History</button>
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50 flex-1 sm:flex-none">
+                            <button onClick={() => setViewMode('leaderboards')} className={`px-2 sm:px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold transition-all flex-1 sm:flex-none ${viewMode === 'leaderboards' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Leaderboards</button>
+                            <button onClick={() => setViewMode('players')} className={`px-2 sm:px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold transition-all flex-1 sm:flex-none ${viewMode === 'players' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Players</button>
+                            <button onClick={() => setViewMode('matches')} className={`px-2 sm:px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold transition-all flex-1 sm:flex-none ${viewMode === 'matches' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Matches</button>
                         </div>
-                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50">
-                            <button onClick={() => setFilterYear('all')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${filterYear === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
-                            <button onClick={() => setFilterYear('2026')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${filterYear === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
+                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50 flex-1 sm:flex-none">
+                            <button onClick={() => setFilterYear('all')} className={`px-2 sm:px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold transition-all flex-1 sm:flex-none ${filterYear === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>All Time</button>
+                            <button onClick={() => setFilterYear('2026')} className={`px-2 sm:px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold transition-all flex-1 sm:flex-none ${filterYear === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>2026</button>
                         </div>
                     </div>
                 </div>
@@ -169,7 +169,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                 {viewMode === 'players' && (
                     <div className="relative">
                         <Search className="absolute left-3 top-3 text-slate-500" size={18} />
-                        <input type="text" placeholder="Find a player..." className="w-full bg-slate-900 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <input type="text" placeholder="Find a player..." className="w-full bg-slate-900 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 outline-none text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
                 )}
             </div>
@@ -184,9 +184,9 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                         onNavigateToFullList={handleNavigateToFullList} 
                     />
                 ) : viewMode === 'players' ? (
-                    <>
-                        <table className="w-full text-sm text-slate-300">
-                            <thead className="bg-slate-900 text-slate-500 uppercase font-bold text-xs sticky top-0 z-10">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs sm:text-sm text-slate-300 min-w-[800px]">
+                            <thead className="bg-slate-900 text-slate-500 uppercase font-bold text-[10px] sm:text-xs sticky top-0 z-10">
                                 <tr>
                                     <SortHeader field="name" label="Player" />
                                     <SortHeader field="gamesPlayed" label="GP" />
@@ -205,52 +205,47 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             </thead>
                             <tbody className="divide-y divide-slate-700/50">
                                 {sortedData.map(p => {
-                                    const initials = p.name ? p.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??';
                                     return (
                                         <tr key={p.id} onClick={() => onSelectPlayer(p)} className="hover:bg-slate-700/50 cursor-pointer transition-colors">
-                                            <td className="p-3 font-bold text-white flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full border border-slate-750 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
-                                                    {p.photoUrl ? (
+                                            <td className="p-2 sm:p-3 font-bold text-white">
+                                                <div className="flex items-center gap-2 sm:gap-3">
+                                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-slate-750 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
                                                         <img 
-                                                            src={p.photoUrl} 
+                                                            src={p.photoUrl || '/logo.png'} 
                                                             alt={p.name} 
                                                             className="w-full h-full object-cover"
                                                         />
-                                                    ) : (
-                                                        <span className="text-[10px] font-black text-slate-400 font-mono tracking-wider">
-                                                            {initials}
-                                                        </span>
-                                                    )}
+                                                    </div>
+                                                    <span className="truncate max-w-[120px] sm:max-w-none">{p.name}</span>
                                                 </div>
-                                                <span>{p.name}</span>
                                             </td>
-                                            <td className="p-3">{p.gamesPlayed}</td>
-                                            <td className="p-3 text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
-                                            <td className="p-3">{p.winRate.toFixed(1)}%</td>
-                                            <td className="p-3 text-white">{p.goals}</td>
-                                            <td className="p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
-                                            {filterYear === '2026' && <td className="p-3">{p.assists}</td>}
-                                            {filterYear === '2026' && <td className="p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
-                                            {filterYear === '2026' && <td className="p-3 text-yellow-400">{p.cleanSheets}</td>}
-                                            {filterYear === '2026' && <td className="p-3">{p.goalsFor}</td>}
-                                            {filterYear === '2026' && <td className="p-3">{p.goalsAgainst}</td>}
-                                            <td className="p-3 text-orange-400 font-bold">{p.motms || 0}</td>
-                                            <td className="p-3 font-bold text-yellow-500">{p.overall}</td>
+                                            <td className="p-2 sm:p-3">{p.gamesPlayed}</td>
+                                            <td className="p-2 sm:p-3 text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
+                                            <td className="p-2 sm:p-3">{p.winRate.toFixed(1)}%</td>
+                                            <td className="p-2 sm:p-3 text-white">{p.goals}</td>
+                                            <td className="p-2 sm:p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
+                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.assists}</td>}
+                                            {filterYear === '2026' && <td className="p-2 sm:p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
+                                            {filterYear === '2026' && <td className="p-2 sm:p-3 text-yellow-400">{p.cleanSheets}</td>}
+                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.goalsFor}</td>}
+                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.goalsAgainst}</td>}
+                                            <td className="p-2 sm:p-3 text-orange-400 font-bold">{p.motms || 0}</td>
+                                            <td className="p-2 sm:p-3 font-bold text-yellow-500">{p.overall}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                         {sortedData.length === 0 && <div className="p-8 text-center text-slate-500">No players found.</div>}
-                    </>
+                    </div>
                 ) : (
-                    <div className="p-4 space-y-3">
+                    <div className="p-3 sm:p-4 space-y-3">
                         {currentUserRole === 'admin' && (
                             <button
                                 onClick={onAddMatch}
-                                className="w-full bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/50 p-4 rounded-xl flex items-center justify-center gap-2 font-bold mb-4 transition-all"
+                                className="w-full bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/50 p-3 sm:p-4 rounded-xl flex items-center justify-center gap-2 font-bold mb-4 transition-all min-h-[48px]"
                             >
-                                <Plus size={20} /> Log New Match Result
+                                <Plus size={18} /> Log New Match Result
                             </button>
                         )}
                         {filteredMatches.map(m => {
@@ -289,69 +284,69 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             const whiteEvents = getEvents('white');
 
                             return (
-                                    <div key={m.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700 relative">
-                                        <div className="absolute top-2 right-2 flex gap-2 z-10">
-                                            <button onClick={() => handleShareMatch(m, blueScore, whiteScore, blueEvents, whiteEvents)} className="p-1.5 bg-slate-800 text-blue-400 hover:text-blue-300 rounded border border-slate-700 hover:border-blue-500 transition-colors" title="Share Match">
+                                    <div key={m.id} className="bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-700 relative">
+                                        <div className="absolute top-2 right-2 flex gap-1 sm:gap-2 z-10">
+                                            <button onClick={() => handleShareMatch(m, blueScore, whiteScore, blueEvents, whiteEvents)} className="p-1.5 bg-slate-800 text-blue-400 hover:text-blue-300 rounded border border-slate-700 hover:border-blue-500 transition-colors touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center" title="Share Match">
                                                 <Share2 size={14} />
                                             </button>
                                             {currentUserRole === 'admin' && (
                                                 <>
-                                                    <button onClick={() => onEditMatch(m)} className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-700 hover:border-slate-500 transition-colors" title="Edit Match">
+                                                    <button onClick={() => onEditMatch(m)} className="p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded border border-slate-700 hover:border-slate-500 transition-colors touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center" title="Edit Match">
                                                         <Edit2 size={14} />
                                                     </button>
-                                                    <button onClick={() => onDeleteMatch(m)} className="p-1.5 bg-slate-800 text-red-400/70 hover:text-red-400 rounded border border-slate-700 hover:border-red-500 transition-colors" title="Delete Match">
+                                                    <button onClick={() => onDeleteMatch(m)} className="p-1.5 bg-slate-800 text-red-400/70 hover:text-red-400 rounded border border-slate-700 hover:border-red-500 transition-colors touch-manipulation min-h-[36px] min-w-[36px] flex items-center justify-center" title="Delete Match">
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </>
                                             )}
                                         </div>
-                                        <div className="flex justify-between items-center mb-4 pt-6 sm:pt-4 cursor-pointer" onClick={() => toggleMatch(m.id)}>
-                                            <div className="w-1/3 text-left pl-1">
-                                                <div className="text-slate-500 text-xs font-bold uppercase mb-1">{date}</div>
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pt-12 sm:pt-4 cursor-pointer gap-3" onClick={() => toggleMatch(m.id)}>
+                                            <div className="w-full sm:w-1/3 text-left pl-1">
+                                                <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase mb-1">{date}</div>
                                                 {m.motm && (
                                                     <div className="inline-block text-left">
                                                         <span className="text-[10px] text-yellow-500 font-bold block uppercase">MOTM</span>
-                                                        <span className="text-xs text-white font-bold max-w-[90px] sm:max-w-[120px] truncate block">
+                                                        <span className="text-xs text-white font-bold truncate block max-w-[150px] sm:max-w-[120px]">
                                                             {players.find(p => p.id === m.motm)?.name || 'Unknown'}
                                                         </span>
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="w-1/3 flex items-center justify-center gap-4 sm:gap-6">
+                                            <div className="w-full sm:w-1/3 flex items-center justify-center gap-3 sm:gap-6">
                                                 <div className="text-right">
-                                                    <span className="text-blue-400 font-bold uppercase text-xs block">Blue</span>
-                                                    <span className="text-2xl font-black text-white">{blueScore}</span>
+                                                    <span className="text-blue-400 font-bold uppercase text-[10px] sm:text-xs block">Blue</span>
+                                                    <span className="text-xl sm:text-2xl font-black text-white">{blueScore}</span>
                                                 </div>
-                                                <div className="text-slate-600 font-black text-lg">VS</div>
+                                                <div className="text-slate-600 font-black text-base sm:text-lg">VS</div>
                                                 <div className="text-left">
-                                                    <span className="text-slate-300 font-bold uppercase text-xs block">White</span>
-                                                    <span className="text-2xl font-black text-white">{whiteScore}</span>
+                                                    <span className="text-slate-300 font-bold uppercase text-[10px] sm:text-xs block">White</span>
+                                                    <span className="text-xl sm:text-2xl font-black text-white">{whiteScore}</span>
                                                 </div>
                                             </div>
-                                            <div className="w-1/3 flex justify-end pr-2 text-slate-500">
+                                            <div className="w-full sm:w-1/3 flex justify-end pr-2 text-slate-500">
                                                 {expandedMatches[m.id] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                                             </div>
                                         </div>
 
                                         {/* Match Events */}
-                                        <div className="flex justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-3 mt-3">
-                                            <div className="w-1/2 pr-2">
+                                        <div className="flex flex-col sm:flex-row justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-3 mt-3 gap-2 sm:gap-0">
+                                            <div className="w-full sm:w-1/2 sm:pr-2">
                                                 {blueEvents.map((e, idx) => (
-                                                    <div key={idx} className="flex justify-end gap-1 mb-1">
-                                                        <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
-                                                        {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                        {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                        {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                    <div key={idx} className="flex justify-start sm:justify-end gap-1 mb-1">
+                                                        <span className={`font-bold truncate ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
+                                                        {e.type === 'goal' && <span className="flex-shrink-0">⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'assist' && <span className="flex-shrink-0">👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'own_goal' && <span className="flex-shrink-0">❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div className="w-1/2 pl-2 border-l border-slate-800">
+                                            <div className="w-full sm:w-1/2 sm:pl-2 sm:border-l border-slate-800">
                                                 {whiteEvents.map((e, idx) => (
                                                     <div key={idx} className="flex justify-start gap-1 mb-1">
-                                                        {e.type === 'goal' && <span>⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                        {e.type === 'assist' && <span>👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                        {e.type === 'own_goal' && <span>❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
-                                                        <span className={`font-bold ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
+                                                        {e.type === 'goal' && <span className="flex-shrink-0">⚽ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'assist' && <span className="flex-shrink-0">👟 {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        {e.type === 'own_goal' && <span className="flex-shrink-0">❌ {e.count > 1 ? `(${e.count})` : ''}</span>}
+                                                        <span className={`font-bold truncate ${e.type === 'own_goal' ? 'text-red-400' : 'text-white'}`}>{e.player}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -359,7 +354,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
 
                                         {/* Expanded Lineups */}
                                         {expandedMatches[m.id] && (
-                                            <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap gap-4 animate-in slide-in-from-top-2 duration-200">
+                                            <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col sm:flex-row flex-wrap gap-4 animate-in slide-in-from-top-2 duration-200">
                                                 <div className="flex-1 min-w-[120px]">
                                                     <div className="text-xs font-bold text-blue-400 uppercase mb-2 border-b border-blue-500/20 pb-1">Blue Team</div>
                                                     <div className="flex flex-col gap-1">

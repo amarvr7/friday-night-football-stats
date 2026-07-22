@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { CalendarDays, Shield, Clock, UserCheck, UserMinus } from 'lucide-react';
-import { collection, query, orderBy, onSnapshot, doc, addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CalendarDays, Shield, Clock, UserCheck, UserMinus, Users } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot, doc, addDoc, deleteDoc, serverTimestamp, writeBatch, Timestamp } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
+
+const BIG_NIGHT_THRESHOLD = 24;
 
 const CheckInSystem = ({ players, currentUserRole }) => {
     const [checkins, setCheckins] = useState([]);
-    const [settings, setSettings] = useState({ unlockTime: null });
     const [selectedPlayer, setSelectedPlayer] = useState('');
-    const [unlockTimeInput, setUnlockTimeInput] = useState('');
     const [newPlayerName, setNewPlayerName] = useState('');
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkLoading, setBulkLoading] = useState(false);
 
     useEffect(() => {
         // Order by timestamp ensures Waitlist logic works automatically (First come first serve)
@@ -16,12 +18,15 @@ const CheckInSystem = ({ players, currentUserRole }) => {
         const unsub = onSnapshot(qCheckins, (snapshot) => {
             setCheckins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
-        const qSettings = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'config');
-        const unsubSettings = onSnapshot(qSettings, (snap) => {
-            if (snap.exists()) setSettings(snap.data());
-        });
-        return () => { unsub(); unsubSettings(); };
+        return () => unsub();
     }, []);
+
+    // Players not yet checked in (shared by the dropdown and the admin checklist)
+    const availablePlayers = useMemo(() => {
+        return players
+            .filter(p => !checkins.some(c => c.playerId === p.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [players, checkins]);
 
     const handleCheckIn = async () => {
         if (!selectedPlayer) return;
@@ -63,37 +68,51 @@ const CheckInSystem = ({ players, currentUserRole }) => {
         } catch (err) { console.error("Remove failed", err); }
     };
 
-    const updateUnlockTime = async () => {
-        if (currentUserRole !== 'admin') return;
+    const handleToggleSelect = (playerId) => {
+        setSelectedIds(prev => prev.includes(playerId)
+            ? prev.filter(id => id !== playerId)
+            : [...prev, playerId]
+        );
+    };
 
-        if (!unlockTimeInput) {
-            alert("Please select a date and time.");
-            return;
-        }
+    // ADMIN: Check in all ticked names at once
+    const handleBulkCheckIn = async () => {
+        if (currentUserRole !== 'admin' || selectedIds.length === 0) return;
 
+        setBulkLoading(true);
         try {
-            const date = new Date(unlockTimeInput);
+            const batch = writeBatch(db);
+            const baseTime = Date.now();
 
-            if (isNaN(date.getTime())) {
-                throw new Error("Invalid date selected");
-            }
+            selectedIds.forEach((playerId, i) => {
+                const player = players.find(p => p.id === playerId);
+                if (!player) return;
+                if (checkins.some(c => c.playerId === playerId)) return;
 
-            await setDoc(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'config'), {
-                unlockTime: date.toISOString()
+                // Staggered timestamps keep the check-in order matching the selection order
+                const checkinRef = doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.CHECKINS));
+                batch.set(checkinRef, {
+                    playerId,
+                    name: player.name,
+                    timestamp: Timestamp.fromMillis(baseTime + i)
+                });
             });
-            alert("Unlock time updated!");
+
+            await batch.commit();
+            setSelectedIds([]);
         } catch (err) {
-            console.error("Settings update failed", err);
-            alert("Failed to update time: " + err.message);
+            console.error("Bulk check-in failed", err);
+            alert("Bulk check-in failed: " + err.message);
+        } finally {
+            setBulkLoading(false);
         }
     };
 
-    const isUnlocked = settings.unlockTime ? new Date() >= new Date(settings.unlockTime) : true;
-    const canCheckIn = isUnlocked || currentUserRole === 'admin';
-
-    // Separate Lists
-    const starting12 = checkins.slice(0, 12);
-    const waitingList = checkins.slice(12);
+    // Separate Lists — Big Night (24+) expands the roster to 24 players / 4 teams
+    const isBigNight = checkins.length >= BIG_NIGHT_THRESHOLD;
+    const rosterSize = isBigNight ? BIG_NIGHT_THRESHOLD : 12;
+    const startingList = checkins.slice(0, rosterSize);
+    const waitingList = checkins.slice(rosterSize);
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
@@ -107,70 +126,106 @@ const CheckInSystem = ({ players, currentUserRole }) => {
                 </div>
             </div>
 
-            {currentUserRole === 'admin' && (
+            {currentUserRole === 'admin' && availablePlayers.length > 0 && (
                 <div className="bg-slate-900/50 p-4 rounded-lg mb-6 border border-slate-700">
-                    <h3 className="text-sm font-bold text-yellow-500 uppercase mb-2 flex items-center gap-2"><Shield size={14} /> Admin Controls</h3>
-                    <div className="flex gap-2">
-                        <input type="datetime-local" className="bg-slate-800 text-white text-sm p-2 rounded border border-slate-600 flex-1" onChange={(e) => setUnlockTimeInput(e.target.value)} />
-                        <button onClick={updateUnlockTime} className="bg-slate-700 text-white px-4 py-2 rounded text-sm font-bold hover:bg-slate-600">Set Unlock Time</button>
+                    <h3 className="text-sm font-bold text-yellow-500 uppercase mb-3 flex items-center gap-2">
+                        <Shield size={14} /> Admin: Tap Names to Check In
+                    </h3>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {availablePlayers.map(p => {
+                            const isSelected = selectedIds.includes(p.id);
+                            return (
+                                <button
+                                    key={p.id}
+                                    onClick={() => handleToggleSelect(p.id)}
+                                    aria-pressed={isSelected}
+                                    aria-label={`Select ${p.name} for check-in`}
+                                    className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors min-h-[40px] ${isSelected
+                                        ? 'bg-green-600 text-white border-green-400'
+                                        : 'bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-400'}`}
+                                >
+                                    {isSelected ? '✓ ' : ''}{p.name}
+                                </button>
+                            );
+                        })}
                     </div>
-                    <div className="text-xs text-slate-500 mt-2">Current Unlock: {settings.unlockTime ? new Date(settings.unlockTime).toLocaleString() : 'Always Open'}</div>
+                    <div className="flex justify-between items-center gap-2">
+                        <span className="text-xs text-slate-500">
+                            {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Tap names, then check them all in at once.'}
+                        </span>
+                        <div className="flex gap-2">
+                            {selectedIds.length > 0 && (
+                                <button
+                                    onClick={() => setSelectedIds([])}
+                                    className="text-slate-400 hover:text-white px-3 py-2 rounded text-sm font-bold"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                            <button
+                                onClick={handleBulkCheckIn}
+                                disabled={selectedIds.length === 0 || bulkLoading}
+                                className="bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2"
+                            >
+                                <Users size={14} /> {bulkLoading ? 'Adding...' : `Check In${selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}`}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
-            {canCheckIn ? (
-                <div className="flex flex-col sm:flex-row gap-2 mb-6 items-start">
-                    <div className="flex-1 w-full space-y-2">
-                        <select
-                            className="w-full bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
-                            value={selectedPlayer}
-                            onChange={(e) => setSelectedPlayer(e.target.value)}
-                        >
-                            <option value="">Select Your Name...</option>
-                            {players
-                                .filter(p => !checkins.some(c => c.playerId === p.id))
-                                .sort((a, b) => a.name.localeCompare(b.name))
-                                .map(p => <option key={p.id} value={p.id}>{p.name}</option>)
-                            }
-                            <option value="NEW" className="text-green-400 font-bold">+ I'm not listed (Add Name)</option>
-                        </select>
-                        {selectedPlayer === 'NEW' && (
-                            <input
-                                type="text"
-                                placeholder="Enter your full name..."
-                                className="w-full bg-slate-800 text-white p-3 rounded-lg border border-green-500/50 focus:border-green-500 outline-none"
-                                value={newPlayerName}
-                                onChange={(e) => setNewPlayerName(e.target.value)}
-                                autoFocus
-                            />
-                        )}
-                    </div>
-                    <button
-                        onClick={handleCheckIn}
-                        disabled={!selectedPlayer || (selectedPlayer === 'NEW' && !newPlayerName.trim())}
-                        className={`w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 h-[50px] transition-colors ${checkins.length >= 12 ? 'bg-orange-500 hover:bg-orange-400' : 'bg-green-600 hover:bg-green-500'}`}
+            {/* Big Night Banner */}
+            {isBigNight && (
+                <div className="bg-purple-500/10 border border-purple-500/30 p-3 rounded-lg mb-6 text-center">
+                    <p className="text-purple-300 font-bold text-sm flex items-center justify-center gap-2">
+                        <Users size={16} /> BIG NIGHT: {checkins.length} players — 4-team mode unlocked (2 games)!
+                    </p>
+                </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 mb-6 items-start">
+                <div className="flex-1 w-full space-y-2">
+                    <select
+                        className="w-full bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
+                        value={selectedPlayer}
+                        onChange={(e) => setSelectedPlayer(e.target.value)}
                     >
-                        {checkins.length >= 12 ? (
-                            <><Clock size={18} /> Join Waitlist</>
-                        ) : (
-                            <><UserCheck size={18} /> I'm In</>
-                        )}
-                    </button>
+                        <option value="">Select Your Name...</option>
+                        {availablePlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        <option value="NEW" className="text-green-400 font-bold">+ I'm not listed (Add Name)</option>
+                    </select>
+                    {selectedPlayer === 'NEW' && (
+                        <input
+                            type="text"
+                            placeholder="Enter your full name..."
+                            className="w-full bg-slate-800 text-white p-3 rounded-lg border border-green-500/50 focus:border-green-500 outline-none"
+                            value={newPlayerName}
+                            onChange={(e) => setNewPlayerName(e.target.value)}
+                            autoFocus
+                        />
+                    )}
                 </div>
-            ) : (
-                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-lg text-center mb-6">
-                    <Clock className="text-red-400 mx-auto mb-2" />
-                    <p className="text-red-400 font-bold">Check-in is currently locked.</p>
-                    <p className="text-xs text-slate-400 mt-1">Opens: {settings.unlockTime ? new Date(settings.unlockTime).toLocaleString() : 'Soon'}</p>
-                </div>
-            )}
+                <button
+                    onClick={handleCheckIn}
+                    disabled={!selectedPlayer || (selectedPlayer === 'NEW' && !newPlayerName.trim())}
+                    className={`w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 h-[50px] transition-colors ${checkins.length >= rosterSize ? 'bg-orange-500 hover:bg-orange-400' : 'bg-green-600 hover:bg-green-500'}`}
+                >
+                    {checkins.length >= rosterSize ? (
+                        <><Clock size={18} /> Join Waitlist</>
+                    ) : (
+                        <><UserCheck size={18} /> I'm In</>
+                    )}
+                </button>
+            </div>
 
-            {/* Starting 12 */}
+            {/* Starting Roster */}
             <div className="mb-4">
-                <h3 className="text-green-400 font-bold uppercase text-xs mb-2 tracking-wider">Starting 12 ({starting12.length}/12)</h3>
+                <h3 className="text-green-400 font-bold uppercase text-xs mb-2 tracking-wider">
+                    {isBigNight ? `Big Night Roster (${startingList.length}/${rosterSize})` : `Starting 12 (${startingList.length}/12)`}
+                </h3>
                 <div className="space-y-2">
-                    {starting12.length === 0 && <p className="text-slate-500 text-sm italic">Empty pitch.</p>}
-                    {starting12.map((c, idx) => (
+                    {startingList.length === 0 && <p className="text-slate-500 text-sm italic">Empty pitch.</p>}
+                    {startingList.map((c, idx) => (
                         <div key={c.id} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-green-500/30">
                             <div className="flex items-center gap-3">
                                 <span className="bg-green-900 text-green-400 text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full">{idx + 1}</span>
@@ -196,7 +251,7 @@ const CheckInSystem = ({ players, currentUserRole }) => {
                         {waitingList.map((c, idx) => (
                             <div key={c.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-dashed border-slate-700 opacity-70">
                                 <div className="flex items-center gap-3">
-                                    <span className="bg-slate-800 text-slate-400 text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full">{12 + idx + 1}</span>
+                                    <span className="bg-slate-800 text-slate-400 text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full">{rosterSize + idx + 1}</span>
                                     <span className="font-medium text-slate-300">{c.name}</span>
                                 </div>
                                 <div className="flex items-center gap-2">

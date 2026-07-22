@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus, Share2 } from 'lucide-react';
 
 const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
+    // Display labels — Game 2 on Big Nights passes { blue: 'Red', white: 'Green' }
+    const teamLabels = initialTeams?.labels || { blue: 'Blue', white: 'White' };
     const [matchData, setMatchData] = useState({});
     const [blueScore, setBlueScore] = useState(0);
     const [whiteScore, setWhiteScore] = useState(0);
@@ -176,7 +178,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     };
 
     const handleShare = () => {
-        const scoreText = `🏆 Friday Night Match Result! 🏆\nBlue: ${blueScore}\nWhite: ${whiteScore}`;
+        const scoreText = `🏆 Friday Night Match Result! 🏆\n${teamLabels.blue}: ${blueScore}\n${teamLabels.white}: ${whiteScore}`;
         let pkText = '';
         if (blueScore === whiteScore) {
             let bluePkGoals = 0;
@@ -201,14 +203,14 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             });
 
             if (Object.keys(pkAttempts).length > 0) {
-                const winnerText = bluePkGoals > whitePkGoals ? 'Blue' : (whitePkGoals > bluePkGoals ? 'White' : 'Tied');
+                const winnerText = bluePkGoals > whitePkGoals ? teamLabels.blue : (whitePkGoals > bluePkGoals ? teamLabels.white : 'Tied');
                 pkText = `\n(${winnerText} wins ${bluePkGoals}-${whitePkGoals} on penalties!)`;
                 if (blueTakers.length > 0 || whiteTakers.length > 0) {
-                    pkText += `\n\n🔵 Blue Penalties:\n${blueTakers.length > 0 ? blueTakers.join(', ') : 'None'}`;
-                    pkText += `\n⚪ White Penalties:\n${whiteTakers.length > 0 ? whiteTakers.join(', ') : 'None'}\n`;
+                    pkText += `\n\n${teamLabels.blue} Penalties:\n${blueTakers.length > 0 ? blueTakers.join(', ') : 'None'}`;
+                    pkText += `\n${teamLabels.white} Penalties:\n${whiteTakers.length > 0 ? whiteTakers.join(', ') : 'None'}\n`;
                 }
             } else if (pkWinner) {
-                pkText = `\n(${pkWinner === 'blue' ? 'Blue' : 'White'} wins on PKs)\n`;
+                pkText = `\n(${pkWinner === 'blue' ? teamLabels.blue : teamLabels.white} wins on PKs)\n`;
             }
         }
         
@@ -272,7 +274,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             {subModalTeam && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setSubModalTeam(null)}>
                     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold text-white mb-4">Add Substitute to {subModalTeam === 'blue' ? 'Blue' : 'White'} Team</h3>
+                        <h3 className="text-xl font-bold text-white mb-4">Add Substitute to {subModalTeam ? teamLabels[subModalTeam] : ''} Team</h3>
                         <select
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white mb-4"
                             value={selectedSub}
@@ -342,12 +344,12 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             {/* Scoreboard */}
             <div className="flex justify-between items-center bg-slate-900 p-6 rounded-xl border border-slate-700 mb-8 shadow-inner">
                 <div className="text-center w-1/3">
-                    <h3 className="text-blue-400 font-bold uppercase tracking-wider mb-2">Blue</h3>
+                    <h3 className={`font-bold uppercase tracking-wider mb-2 ${teamLabels.blue === 'Red' ? 'text-red-400' : 'text-blue-400'}`}>{teamLabels.blue}</h3>
                     <div className="text-6xl font-black text-white">{blueScore}</div>
                 </div>
                 <div className="text-slate-600 font-black text-2xl w-1/3 text-center">VS</div>
                 <div className="text-center w-1/3">
-                    <h3 className="text-white font-bold uppercase tracking-wider mb-2">White</h3>
+                    <h3 className={`font-bold uppercase tracking-wider mb-2 ${teamLabels.white === 'Green' ? 'text-green-400' : 'text-white'}`}>{teamLabels.white}</h3>
                     <div className="text-6xl font-black text-white">{whiteScore}</div>
                 </div>
             </div>
@@ -490,7 +492,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                         <Star className={votes > 0 ? 'text-yellow-500 fill-yellow-500' : 'text-slate-500'} size={24} />
                                     </div>
                                     <span className="font-bold text-white text-sm text-center line-clamp-1">{player?.name}</span>
-                                    <span className="text-xs text-slate-500 mt-1 uppercase">{isBlue ? 'Blue' : 'White'}</span>
+                                    <span className="text-xs text-slate-500 mt-1 uppercase">{isBlue ? teamLabels.blue : teamLabels.white}</span>
                                 </button>
                             );
                         })}
@@ -504,7 +506,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                         <div>
-                            <h4 className="text-blue-400 font-bold mb-3 uppercase border-b border-blue-500/30 pb-2">Blue Team PKs</h4>
+                            <h4 className="text-blue-400 font-bold mb-3 uppercase border-b border-blue-500/30 pb-2">{teamLabels.blue} Team PKs</h4>
                             <div className="space-y-2">
                                 {bluePlayers.map(pid => {
                                     const p = players.find(x => x.id === pid);
@@ -521,7 +523,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                             </div>
                         </div>
                         <div>
-                            <h4 className="text-white font-bold mb-3 uppercase border-b border-white/30 pb-2">White Team PKs</h4>
+                            <h4 className="text-white font-bold mb-3 uppercase border-b border-white/30 pb-2">{teamLabels.white} Team PKs</h4>
                             <div className="space-y-2">
                                 {whitePlayers.map(pid => {
                                     const p = players.find(x => x.id === pid);
@@ -546,13 +548,13 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                 onClick={() => setPkWinner('blue')}
                                 className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'blue' ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-blue-500/50 border-blue-500/20 hover:border-blue-500/50'}`}
                             >
-                                Blue
+                                {teamLabels.blue}
                             </button>
                             <button 
                                 onClick={() => setPkWinner('white')}
                                 className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'white' ? 'bg-slate-200 text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-500 border-white/20 hover:border-white/50'}`}
                             >
-                                White
+                                {teamLabels.white}
                             </button>
                         </div>
                     </div>
