@@ -45,15 +45,16 @@ export default function DashboardView({
                 };
                 dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
             } else {
-                // Use stored stats for All Time
+                // All-Time: top-level stored stats (kept up to date by handleSaveMatch)
+                // plus imported season2026 stats which only live in the nested map.
                 dynamicStats = {
-                    goals: p.goals || 0,
-                    wins: p.wins || 0,
-                    gamesPlayed: p.gamesPlayed || 0,
-                    assists: p.assists || 0,
-                    cleanSheets: p.cleanSheets || 0, // Fallback if not in top-level
-                    goalContrib: (p.goals || 0) + (p.assists || 0),
-                    motms: p.motms || 0
+                    goals: (p.goals || 0) + (p.season2026?.goals || 0),
+                    wins: (p.wins || 0) + (p.season2026?.wins || 0),
+                    gamesPlayed: (p.gamesPlayed || 0) + (p.season2026?.games || 0),
+                    assists: (p.assists || 0) + (p.season2026?.assists || 0),
+                    cleanSheets: (p.cleanSheets || 0) + (p.season2026?.cleanSheets || 0),
+                    goalContrib: (p.goals || 0) + (p.assists || 0) + (p.season2026?.goals || 0) + (p.season2026?.assists || 0),
+                    motms: (p.motms || 0) + (p.season2026?.motms || 0)
                 };
             }
 

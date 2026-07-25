@@ -66,6 +66,7 @@ export default function FridayNightFUT() {
       await updateDoc(matchRef, {
         stats: matchData,
         motm: matchInfo.motm || null,
+        pkWinner: matchInfo.pkWinner || null,
         blueOwnGoals: matchInfo.blueOwnGoals || 0,
         whiteOwnGoals: matchInfo.whiteOwnGoals || 0
       });
@@ -87,7 +88,7 @@ export default function FridayNightFUT() {
           batch.update(playerRef, {
             goals: Math.max(0, (player.goals || 0) - oldP.goals + newP.goals),
             assists: Math.max(0, (player.assists || 0) - oldP.assists + newP.assists),
-            wins: Math.max(0, (player.wins || 0) - (oldP.win ? 1 : 0) + (newP.win ? 1 : 0)),
+            wins: Math.max(0, (player.wins || 0) - (oldP.win || 0) + (newP.win || 0)),
             gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - (oldStats[pid] ? 1 : 0) + (matchData[pid] ? 1 : 0)),
             motms: Math.max(0, (player.motms || 0) - (isOldMotm ? 1 : 0) + (isNewMotm ? 1 : 0)),
             cleanSheets: Math.max(0, (player.cleanSheets || 0) - (oldP.cleanSheet ? 1 : 0) + (newP.cleanSheet ? 1 : 0)),
@@ -104,6 +105,7 @@ export default function FridayNightFUT() {
         stats: matchData,
         createdBy: user.uid,
         motm: matchInfo.motm || null,
+        pkWinner: matchInfo.pkWinner || null,
         blueOwnGoals: matchInfo.blueOwnGoals || 0,
         whiteOwnGoals: matchInfo.whiteOwnGoals || 0
       });
@@ -118,7 +120,7 @@ export default function FridayNightFUT() {
           await updateDoc(playerRef, {
             goals: (player.goals || 0) + stats.goals,
             assists: (player.assists || 0) + stats.assists,
-            wins: (player.wins || 0) + (stats.win ? 1 : 0),
+            wins: (player.wins || 0) + (stats.win || 0),
             gamesPlayed: (player.gamesPlayed || 0) + 1,
             motms: (player.motms || 0) + (isMotm ? 1 : 0),
             cleanSheets: (player.cleanSheets || 0) + (stats.cleanSheet ? 1 : 0),
@@ -146,7 +148,7 @@ export default function FridayNightFUT() {
           batch.update(playerRef, {
             goals: Math.max(0, (player.goals || 0) - stats.goals),
             assists: Math.max(0, (player.assists || 0) - stats.assists),
-            wins: Math.max(0, (player.wins || 0) - (stats.win ? 1 : 0)),
+            wins: Math.max(0, (player.wins || 0) - (stats.win || 0)),
             gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - 1),
             motms: Math.max(0, (player.motms || 0) - (isMotm ? 1 : 0)),
             cleanSheets: Math.max(0, (player.cleanSheets || 0) - (stats.cleanSheet ? 1 : 0)),
@@ -346,7 +348,7 @@ export default function FridayNightFUT() {
           matches={matches}
           playerStreaks={playerStreaks}
           onSelectPlayer={(p) => setSelectedPlayerForEdit(p)}
-          onAddMatch={() => setView('add-match')}
+          onAddMatch={() => { setMatchSetup(null); setEditingMatch(null); setView('log-match'); }}
           onEditMatch={(m) => { setEditingMatch(m); setView('log-match'); }}
           onDeleteMatch={handleDeleteMatch}
           currentUserRole={authStatus.role}

@@ -3,8 +3,23 @@ import { TrendingUp, Save, AlertCircle } from 'lucide-react';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 
+// The 2026 leaderboards read from the nested season2026 map (plus match docs),
+// while all-time views read the top-level fields. gamesPlayed is stored as
+// season2026.games, hence the mapping.
+const SEASON_2026_FIELD_MAP = {
+    goals: 'goals',
+    assists: 'assists',
+    wins: 'wins',
+    gamesPlayed: 'games',
+    cleanSheets: 'cleanSheets',
+    motms: 'motms',
+    goalsFor: 'goalsFor',
+    goalsAgainst: 'goalsAgainst'
+};
+
 export default function StatsLogger({ players, onBack }) {
     const [selectedPlayer, setSelectedPlayer] = useState('');
+    const [targetSeason, setTargetSeason] = useState('2026'); // '2026' or 'alltime'
     const [statsForm, setStatsForm] = useState({
         goals: '',
         assists: '',
@@ -37,7 +52,8 @@ export default function StatsLogger({ players, onBack }) {
         Object.keys(statsForm).forEach(key => {
             const value = parseInt(statsForm[key]) || 0;
             if (value !== 0) {
-                updates[key] = increment(value);
+                const fieldPath = targetSeason === '2026' ? `season2026.${SEASON_2026_FIELD_MAP[key]}` : key;
+                updates[fieldPath] = increment(value);
                 hasChanges = true;
             }
         });
@@ -63,7 +79,7 @@ export default function StatsLogger({ players, onBack }) {
             if (parseInt(statsForm.goalsFor) || 0) summary.push(`${statsForm.goalsFor} GF`);
             if (parseInt(statsForm.goalsAgainst) || 0) summary.push(`${statsForm.goalsAgainst} GA`);
 
-            alert(`Successfully updated ${player.name}:\n${summary.join(', ')}`);
+            alert(`Successfully updated ${player.name} (${targetSeason === '2026' ? '2026 season' : 'all-time'}):\n${summary.join(', ')}`);
 
             setStatsForm({
                 goals: '',
@@ -108,6 +124,31 @@ export default function StatsLogger({ players, onBack }) {
 
                 <form onSubmit={handleSaveStats}>
                     <div className="mb-6">
+                        <label className="block text-slate-300 font-bold mb-2 text-sm">Apply Stats To</label>
+                        <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700/50 mb-2">
+                            <button
+                                type="button"
+                                onClick={() => setTargetSeason('2026')}
+                                className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${targetSeason === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                2026 Season
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTargetSeason('alltime')}
+                                className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${targetSeason === 'alltime' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                All-Time (Legacy)
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            {targetSeason === '2026'
+                                ? 'Counts towards the 2026 season leaderboards AND all-time totals.'
+                                : 'Counts towards all-time totals only (pre-2026 / legacy corrections).'}
+                        </p>
+                    </div>
+
+                    <div className="mb-6">
                         <label className="block text-slate-300 font-bold mb-2 text-sm">Select Player</label>
                         <select
                             className="w-full bg-slate-900 border border-slate-600 text-white p-3 rounded-lg text-base"
@@ -122,45 +163,66 @@ export default function StatsLogger({ players, onBack }) {
                         </select>
                     </div>
 
-                    {selectedPlayerData && (
-                        <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
-                            <h3 className="text-sm font-bold text-slate-400 uppercase mb-3">Current Stats for {selectedPlayerData.name}</h3>
-                            <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 text-center text-xs">
-                                <div>
-                                    <span className="text-slate-500 block mb-1">Goals</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.goals || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">Assists</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.assists || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">Wins</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.wins || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">Games</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.gamesPlayed || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">CS</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.cleanSheets || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">MOTM</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.motms || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">GF</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.goalsFor || 0}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-500 block mb-1">GA</span>
-                                    <span className="text-white font-bold text-base">{selectedPlayerData.goalsAgainst || 0}</span>
+                    {selectedPlayerData && (() => {
+                        const isSeason2026 = targetSeason === '2026';
+                        const source = isSeason2026 ? (selectedPlayerData.season2026 || {}) : selectedPlayerData;
+                        const currentStats = {
+                            goals: source.goals || 0,
+                            assists: source.assists || 0,
+                            wins: source.wins || 0,
+                            gamesPlayed: (isSeason2026 ? source.games : source.gamesPlayed) || 0,
+                            cleanSheets: source.cleanSheets || 0,
+                            motms: source.motms || 0,
+                            goalsFor: source.goalsFor || 0,
+                            goalsAgainst: source.goalsAgainst || 0
+                        };
+                        return (
+                            <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase mb-3">
+                                    Current {isSeason2026 ? '2026 Manual' : 'All-Time'} Stats for {selectedPlayerData.name}
+                                </h3>
+                                {isSeason2026 && (
+                                    <p className="text-[10px] text-slate-500 mb-3">
+                                        Excludes stats from logged matches — those are added automatically on the leaderboards.
+                                    </p>
+                                )}
+                                <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 text-center text-xs">
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">Goals</span>
+                                        <span className="text-white font-bold text-base">{currentStats.goals}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">Assists</span>
+                                        <span className="text-white font-bold text-base">{currentStats.assists}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">Wins</span>
+                                        <span className="text-white font-bold text-base">{currentStats.wins}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">Games</span>
+                                        <span className="text-white font-bold text-base">{currentStats.gamesPlayed}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">CS</span>
+                                        <span className="text-white font-bold text-base">{currentStats.cleanSheets}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">MOTM</span>
+                                        <span className="text-white font-bold text-base">{currentStats.motms}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">GF</span>
+                                        <span className="text-white font-bold text-base">{currentStats.goalsFor}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block mb-1">GA</span>
+                                        <span className="text-white font-bold text-base">{currentStats.goalsAgainst}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 sm:p-6 mb-6">
                         <h3 className="text-sm font-bold text-blue-400 uppercase mb-4">Enter Stats to Add/Subtract</h3>

@@ -32,7 +32,59 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     // Sub Modal State
     const [subModalTeam, setSubModalTeam] = useState(null);
-    const [selectedSub, setSelectedSub] = useState('');
+    const [selectedSubIn, setSelectedSubIn] = useState('');
+    const [selectedSubOut, setSelectedSubOut] = useState('');
+    const [removeSubOut, setRemoveSubOut] = useState(false);
+
+    const playerHasRecordedStats = (pid) => {
+        const stats = matchData[pid];
+        return !!stats && ((stats.goals || 0) > 0 || (stats.assists || 0) > 0 || (stats.ownGoals || 0) > 0);
+    };
+
+    const handleCloseSubModal = () => {
+        setSubModalTeam(null);
+        setSelectedSubIn('');
+        setSelectedSubOut('');
+        setRemoveSubOut(false);
+    };
+
+    const handleSelectSubOut = (pid) => {
+        setSelectedSubOut(pid);
+        // If the outgoing player has no recorded involvement, assume they never
+        // actually played (e.g. a no-show) and default to removing them entirely.
+        setRemoveSubOut(pid ? !playerHasRecordedStats(pid) : false);
+    };
+
+    const handleConfirmSub = () => {
+        if (!selectedSubIn && !selectedSubOut) return;
+
+        setMatchData(prev => {
+            const next = { ...prev };
+            if (selectedSubOut) {
+                if (removeSubOut) {
+                    delete next[selectedSubOut];
+                } else {
+                    next[selectedSubOut] = { ...next[selectedSubOut], subbedOut: true };
+                }
+            }
+            if (selectedSubIn) {
+                const existing = next[selectedSubIn];
+                next[selectedSubIn] = existing
+                    ? { ...existing, team: subModalTeam, subbedOut: false }
+                    : { goals: 0, assists: 0, ownGoals: 0, team: subModalTeam };
+            }
+            return next;
+        });
+
+        setMotmVotes(prev => {
+            const next = { ...prev };
+            if (selectedSubOut && removeSubOut) delete next[selectedSubOut];
+            if (selectedSubIn && next[selectedSubIn] === undefined) next[selectedSubIn] = 0;
+            return next;
+        });
+
+        handleCloseSubModal();
+    };
 
     // Initialize players from initialTeams
     useEffect(() => {
@@ -163,7 +215,10 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
         const finalData = {};
         Object.keys(matchData).forEach(pid => {
-            const pData = matchData[pid];
+            // Strip the UI-only subbedOut flag; subbed-off players still played,
+            // so they keep their stats and team result. Players removed as
+            // "never played" are no longer in matchData and get nothing.
+            const { subbedOut, ...pData } = matchData[pid];
             const isBlue = pData.team === 'blue';
             finalData[pid] = {
                 ...pData,
@@ -247,9 +302,24 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         }
     };
 
-    // Split players by team for the view
-    const bluePlayers = Object.keys(matchData).filter(pid => matchData[pid].team === 'blue');
-    const whitePlayers = Object.keys(matchData).filter(pid => matchData[pid].team === 'white');
+    // Split players by team for the view (active players only — subbed-off players are shown separately)
+    const bluePlayers = Object.keys(matchData).filter(pid => matchData[pid].team === 'blue' && !matchData[pid].subbedOut);
+    const whitePlayers = Object.keys(matchData).filter(pid => matchData[pid].team === 'white' && !matchData[pid].subbedOut);
+    const blueSubbedOff = Object.keys(matchData).filter(pid => matchData[pid].team === 'blue' && matchData[pid].subbedOut);
+    const whiteSubbedOff = Object.keys(matchData).filter(pid => matchData[pid].team === 'white' && matchData[pid].subbedOut);
+
+    const renderSubbedOffRow = (pid) => {
+        const player = players.find(p => p.id === pid);
+        const stats = matchData[pid];
+        return (
+            <div key={pid} className="flex items-center justify-between p-3 rounded-lg border border-slate-700/50 bg-slate-800/40 opacity-60">
+                <span className="font-bold text-slate-400 truncate">{player?.name}</span>
+                <span className="text-[10px] font-bold uppercase text-slate-500 flex-shrink-0 ml-2">
+                    Subbed Off · G {stats.goals || 0} · A {stats.assists || 0}
+                </span>
+            </div>
+        );
+    };
 
     return (
         <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 relative overflow-hidden">
@@ -272,49 +342,85 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
             {/* Sub Modal */}
             {subModalTeam && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setSubModalTeam(null)}>
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={handleCloseSubModal}>
                     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold text-white mb-4">Add Substitute to {subModalTeam ? teamLabels[subModalTeam] : ''} Team</h3>
+                        <h3 className="text-xl font-bold text-white mb-4">Substitution — {teamLabels[subModalTeam]} Team</h3>
+
+                        <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Player Coming On</label>
                         <select
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white mb-4"
-                            value={selectedSub}
-                            onChange={(e) => setSelectedSub(e.target.value)}
+                            value={selectedSubIn}
+                            onChange={(e) => setSelectedSubIn(e.target.value)}
                         >
-                            <option value="">Select a player...</option>
+                            <option value="">No one — just taking a player off</option>
                             {players
-                                .filter(p => !matchData[p.id])
-                                .sort((a,b) => a.name.localeCompare(b.name))
+                                .filter(p => !matchData[p.id] || matchData[p.id].subbedOut)
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name}{matchData[p.id]?.subbedOut ? ' (subbed off)' : ''}
+                                    </option>
+                                ))
+                            }
+                        </select>
+
+                        <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Player Coming Off</label>
+                        <select
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white mb-4"
+                            value={selectedSubOut}
+                            onChange={(e) => handleSelectSubOut(e.target.value)}
+                        >
+                            <option value="">No one — just adding a player</option>
+                            {Object.keys(matchData)
+                                .filter(pid => matchData[pid].team === subModalTeam && !matchData[pid].subbedOut)
+                                .map(pid => players.find(p => p.id === pid))
+                                .filter(Boolean)
+                                .sort((a, b) => a.name.localeCompare(b.name))
                                 .map(p => (
                                     <option key={p.id} value={p.id}>{p.name}</option>
                                 ))
                             }
                         </select>
+
+                        {selectedSubOut && (
+                            <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-3 mb-4">
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={removeSubOut}
+                                        onChange={(e) => setRemoveSubOut(e.target.checked)}
+                                        className="mt-0.5 accent-red-500"
+                                    />
+                                    <span className="text-xs text-slate-300">
+                                        <span className="font-bold text-white">Never played</span> — remove them from this match entirely (no game played, win or clean sheet credit).
+                                        {playerHasRecordedStats(selectedSubOut) && (
+                                            <span className="block text-red-400 font-bold mt-1">
+                                                Warning: their recorded goals/assists in this match will be deleted.
+                                            </span>
+                                        )}
+                                    </span>
+                                </label>
+                                {!removeSubOut && (
+                                    <p className="text-[10px] text-slate-500 mt-2">
+                                        Left unchecked, they still count as having played and keep their stats, but can no longer receive new ones.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setSubModalTeam(null)}
+                                onClick={handleCloseSubModal}
                                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
-                                disabled={!selectedSub}
-                                onClick={() => {
-                                    if (selectedSub) {
-                                        setMatchData(prev => ({
-                                            ...prev,
-                                            [selectedSub]: { goals: 0, assists: 0, ownGoals: 0, team: subModalTeam }
-                                        }));
-                                        setMotmVotes(prev => ({
-                                            ...prev,
-                                            [selectedSub]: 0
-                                        }));
-                                        setSubModalTeam(null);
-                                        setSelectedSub('');
-                                    }
-                                }}
+                                disabled={!selectedSubIn && !selectedSubOut}
+                                onClick={handleConfirmSub}
                                 className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors"
                             >
-                                Add Player
+                                Confirm
                             </button>
                         </div>
                     </div>
@@ -403,6 +509,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                 </div>
                             );
                         })}
+                        {blueSubbedOff.map(renderSubbedOffRow)}
                         <button
                             onClick={() => setSubModalTeam('blue')}
                             className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-blue-500/40 text-blue-400 hover:bg-blue-900/40 transition-colors font-bold text-sm mt-2"
@@ -457,6 +564,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                                 </div>
                             );
                         })}
+                        {whiteSubbedOff.map(renderSubbedOffRow)}
                         <button
                             onClick={() => setSubModalTeam('white')}
                             className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-slate-500/40 text-slate-400 hover:bg-slate-700/50 transition-colors font-bold text-sm mt-2"
