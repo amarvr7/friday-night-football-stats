@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shirt, Shuffle, Send, Activity, Trash2, Share2, Users } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
-import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
+import { calculateOverall, getPlayerStats } from '../utils/helpers';
 
 const BIG_NIGHT_THRESHOLD = 24;
 
@@ -58,27 +58,10 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [upcomingTeams, players]);
 
-    // Isolated 2026 Matches
-    const filteredMatches = useMemo(() => {
-        if (!matches) return [];
-        return matches.filter(m => {
-            if (!m.date) return false;
-            const date = new Date(m.date.seconds * 1000);
-            return date.getFullYear() === 2026;
-        });
-    }, [matches]);
 
     // Helper to calculate a player's dynamic 2026 rating
     const getDynamicRating = (player) => {
-        const matchStats = calculateStatsFromMatches(player, filteredMatches);
-        const dynamicStats = {
-            goals: matchStats.goals + (player.season2026?.goals || 0),
-            wins: matchStats.wins + (player.season2026?.wins || 0),
-            gamesPlayed: matchStats.gamesPlayed + (player.season2026?.games || 0),
-            assists: matchStats.assists + (player.season2026?.assists || 0),
-            cleanSheets: matchStats.cleanSheets + (player.season2026?.cleanSheets || 0),
-            motms: (matchStats.motms || 0) + (player.season2026?.motms || 0)
-        };
+        const dynamicStats = getPlayerStats(player, matches, '2026');
         const streaks = playerStreaks?.[player.id];
         return calculateOverall(player, dynamicStats, streaks, true); // forceDynamic = true
     };

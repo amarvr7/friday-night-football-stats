@@ -7,7 +7,7 @@ import {
     orderBy
 } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
-import { calculateOverall, calculateStreaks } from '../utils/helpers';
+import { calculateOverall, calculateStreaks, getPlayerStats } from '../utils/helpers';
 
 export default function useAppModel(user, loggedIn) {
     const [players, setPlayers] = useState([]);
@@ -60,8 +60,12 @@ export default function useAppModel(user, loggedIn) {
 
     // Derived Data
     const sortedPlayers = useMemo(() => {
-        return [...players].sort((a, b) => calculateOverall(b) - calculateOverall(a));
-    }, [players]);
+        return [...players].sort((a, b) => {
+            const bStats = getPlayerStats(b, matches, 'all');
+            const aStats = getPlayerStats(a, matches, 'all');
+            return calculateOverall(b, bStats) - calculateOverall(a, aStats);
+        });
+    }, [players, matches]);
 
     const playerStreaks = useMemo(() => {
         const streaks = {};

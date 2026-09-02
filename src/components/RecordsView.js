@@ -1,7 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Award, Upload, Download, Flame, Clock, TrendingUp, Shield, Activity, Trophy } from 'lucide-react';
+import { getPlayerStats } from '../utils/helpers';
 
 const RecordsView = ({ players, matches, playerStreaks, userRole, handleUploadRecords }) => {
+    // Calculate all-time player stats for records
+    const playersWithStats = useMemo(() => {
+        return players.map(p => ({
+            ...p,
+            ...getPlayerStats(p, matches, 'all')
+        }));
+    }, [players, matches]);
+
     // Determine current active streaks across all players
     const activeWinStreaks = [...players].sort((a, b) => (playerStreaks[b.id]?.winStreak || 0) - (playerStreaks[a.id]?.winStreak || 0)).slice(0, 3);
     const activeGoalStreaks = [...players].sort((a, b) => (playerStreaks[b.id]?.goalStreak || 0) - (playerStreaks[a.id]?.goalStreak || 0)).slice(0, 3);
@@ -25,11 +34,13 @@ const RecordsView = ({ players, matches, playerStreaks, userRole, handleUploadRe
         }
     });
 
+    const topMotmPlayer = [...playersWithStats].sort((a, b) => (b.motms || 0) - (a.motms || 0))[0];
+
     // We can also have manual "Historical Records" stored in Firebase, but for now we'll calculate what we can and provide a placeholder structure.
     const allTimeRecords = [
         { title: "Most Goals in a Match", player: maxGoalsInMatch.player?.name || "N/A", value: maxGoalsInMatch.count, icon: <Flame className="text-orange-500" /> },
         { title: "Most Assists in a Match", player: maxAssistsInMatch.player?.name || "N/A", value: maxAssistsInMatch.count, icon: <TrendingUp className="text-emerald-500" /> },
-        { title: "Most MOTMs (All Time)", player: [...players].sort((a, b) => (b.motms || 0) - (a.motms || 0))[0]?.name || "N/A", value: [...players].sort((a, b) => (b.motms || 0) - (a.motms || 0))[0]?.motms || 0, icon: <Award className="text-yellow-500" /> },
+        { title: "Most MOTMs (All Time)", player: topMotmPlayer?.name || "N/A", value: topMotmPlayer?.motms || 0, icon: <Award className="text-yellow-500" /> },
     ];
 
     const generateCSVTemplate = () => {

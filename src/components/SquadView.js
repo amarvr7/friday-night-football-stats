@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Camera, Filter } from 'lucide-react';
 import AdminTools from './AdminTools';
+import { getPlayerStats } from '../utils/helpers';
 
 export default function SquadView({
     players,
     checkins,
+    matches,
     authStatus,
     user,
     availableLegends,
@@ -57,10 +59,11 @@ export default function SquadView({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {squadDisplayPlayers.map(p => {
                     const status = getPlayerStatus(p.id);
+                    const pStats = getPlayerStats(p, matches, 'all');
                     return (
                         <div
                             key={p.id}
-                            onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit(p); }}
+                            onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit({ ...p, ...pStats }); }}
                             className={`flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 group min-h-[64px] ${authStatus.role === 'admin' ? 'cursor-pointer hover:border-slate-600 active:bg-slate-850' : ''}`}
                         >
                             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
@@ -76,7 +79,7 @@ export default function SquadView({
                             <div className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-2 flex-shrink-0">
                                 {status === 'in' && <span className="text-green-400 font-bold uppercase text-[9px] sm:text-[10px]">Playing</span>}
                                 {status === 'waitlist' && <span className="text-orange-400 font-bold uppercase text-[9px] sm:text-[10px]">Waitlist</span>}
-                                <span className="ml-1 sm:ml-2">{p.gamesPlayed} Apps</span>
+                                <span className="ml-1 sm:ml-2">{pStats.gamesPlayed} Apps</span>
                                 {authStatus.role === 'admin' && <div className="opacity-0 group-hover:opacity-100 bg-slate-700 p-1 rounded-full text-white"><Camera size={12} /></div>}
                             </div>
                         </div>

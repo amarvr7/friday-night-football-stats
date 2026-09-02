@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ArrowRight, Trophy, Target, Zap, Percent, Sparkles, Shield, Flame, Activity } from 'lucide-react';
-import { calculateStatsFromMatches } from '../utils/helpers';
+import { getPlayerStats } from '../utils/helpers';
 
 // Map icon string to Component
 const getIcon = (id, size = 16) => {
@@ -40,46 +40,13 @@ const LeaderboardGrid = ({
     // 2. Pre-process stats for all players
     const playersData = useMemo(() => {
         return players.map(p => {
-            let stats = { goals: 0, wins: 0, gamesPlayed: 0, assists: 0, cleanSheets: 0, goalContrib: 0, goalsFor: 0, goalsAgainst: 0 };
-
-            if (filterYear === '2026') {
-                const matchStats = calculateStatsFromMatches(p, filteredMatches);
-                stats = {
-                    goals: matchStats.goals + (p.season2026?.goals || 0),
-                    wins: matchStats.wins + (p.season2026?.wins || 0),
-                    gamesPlayed: matchStats.gamesPlayed + (p.season2026?.games || 0),
-                    assists: matchStats.assists + (p.season2026?.assists || 0),
-                    cleanSheets: matchStats.cleanSheets + (p.season2026?.cleanSheets || 0),
-                    goalsFor: matchStats.goalsFor + (p.season2026?.goalsFor || 0),
-                    goalsAgainst: matchStats.goalsAgainst + (p.season2026?.goalsAgainst || 0)
-                };
-            } else {
-                // All-Time: top-level fields already include every logged match
-                // (handleSaveMatch increments them), so only add imported season2026 stats.
-                stats = {
-                    goals: (p.goals || 0) + (p.season2026?.goals || 0),
-                    wins: (p.wins || 0) + (p.season2026?.wins || 0),
-                    gamesPlayed: (p.gamesPlayed || 0) + (p.season2026?.games || 0),
-                    assists: (p.assists || 0) + (p.season2026?.assists || 0),
-                    cleanSheets: (p.cleanSheets || 0) + (p.season2026?.cleanSheets || 0),
-                    goalsFor: (p.goalsFor || 0) + (p.season2026?.goalsFor || 0),
-                    goalsAgainst: (p.goalsAgainst || 0) + (p.season2026?.goalsAgainst || 0)
-                };
-            }
-
-            const goalContrib = stats.goals + stats.assists;
-            const goalsPerGame = stats.gamesPlayed > 0 ? stats.goals / stats.gamesPlayed : 0;
-            const winRate = stats.gamesPlayed > 0 ? (stats.wins / stats.gamesPlayed) * 100 : 0;
-
+            const stats = getPlayerStats(p, matches, filterYear);
             return {
                 ...p,
-                ...stats,
-                goalContrib,
-                goalsPerGame,
-                winRate
+                ...stats
             };
         });
-    }, [players, filteredMatches, filterYear]);
+    }, [players, matches, filterYear]);
 
     // 3. Define the 9 categories
     const categories = [

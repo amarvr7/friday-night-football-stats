@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowDown, ArrowUp, BarChart2, Search, Plus, Edit2, Trash2, Share2, ChevronDown, ChevronUp } from 'lucide-react';
-import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
+import { calculateOverall, getPlayerStats } from '../utils/helpers';
 import LeaderboardGrid from './LeaderboardGrid';
 
 const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, onEditMatch, onDeleteMatch, currentUserRole }) => {
@@ -10,6 +10,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
     const [filterYear, setFilterYear] = useState('all');
 
     const filteredMatches = useMemo(() => {
+        if (!matches) return [];
         if (filterYear === 'all') return matches;
         return matches.filter(m => {
             if (!m.date) return false;
@@ -20,46 +21,15 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
 
     const processedPlayers = useMemo(() => {
         return players.map(p => {
-            let dynamicStats = { goals: 0, wins: 0, gamesPlayed: 0, assists: 0, cleanSheets: 0, goalContrib: 0, goalsFor: 0, goalsAgainst: 0 };
-
-            if (filterYear === '2026') {
-                const matchStats = calculateStatsFromMatches(p, filteredMatches);
-                dynamicStats = {
-                    goals: matchStats.goals + (p.season2026?.goals || 0),
-                    wins: matchStats.wins + (p.season2026?.wins || 0),
-                    gamesPlayed: matchStats.gamesPlayed + (p.season2026?.games || 0),
-                    assists: matchStats.assists + (p.season2026?.assists || 0),
-                    cleanSheets: matchStats.cleanSheets + (p.season2026?.cleanSheets || 0),
-                    goalsFor: matchStats.goalsFor + (p.season2026?.goalsFor || 0),
-                    goalsAgainst: matchStats.goalsAgainst + (p.season2026?.goalsAgainst || 0),
-                    motms: (matchStats.motms || 0) + (p.season2026?.motms || 0)
-                };
-                dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
-            } else {
-                // All-Time: top-level fields already include every logged match
-                // (handleSaveMatch increments them), so only add imported season2026 stats.
-                dynamicStats = {
-                    goals: (p.goals || 0) + (p.season2026?.goals || 0),
-                    wins: (p.wins || 0) + (p.season2026?.wins || 0),
-                    gamesPlayed: (p.gamesPlayed || 0) + (p.season2026?.games || 0),
-                    assists: (p.assists || 0) + (p.season2026?.assists || 0),
-                    cleanSheets: (p.cleanSheets || 0) + (p.season2026?.cleanSheets || 0),
-                    goalContrib: (p.goals || 0) + (p.assists || 0) + (p.season2026?.goals || 0) + (p.season2026?.assists || 0),
-                    goalsFor: (p.goalsFor || 0) + (p.season2026?.goalsFor || 0),
-                    goalsAgainst: (p.goalsAgainst || 0) + (p.season2026?.goalsAgainst || 0),
-                    motms: (p.motms || 0) + (p.season2026?.motms || 0)
-                };
-            }
+            const dynamicStats = getPlayerStats(p, matches, filterYear);
 
             return {
                 ...p,
                 ...dynamicStats,
-                winRate: dynamicStats.gamesPlayed > 0 ? (dynamicStats.wins / dynamicStats.gamesPlayed) * 100 : 0,
-                goalsPerGame: dynamicStats.gamesPlayed > 0 ? dynamicStats.goals / dynamicStats.gamesPlayed : 0,
                 overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id], filterYear === '2026')
             };
         }).filter(p => filterYear === 'all' || p.gamesPlayed > 0);
-    }, [players, filteredMatches, filterYear, playerStreaks]);
+    }, [players, matches, filterYear, playerStreaks]);
 
     const sortedData = useMemo(() => {
         let data = [...processedPlayers];
@@ -195,11 +165,11 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                     <SortHeader field="winRate" label="Win %" />
                                     <SortHeader field="goals" label="G" />
                                     <SortHeader field="goalsPerGame" label="GPG" />
-                                    {filterYear === '2026' && <SortHeader field="assists" label="A" />}
-                                    {filterYear === '2026' && <SortHeader field="goalContrib" label="G+A" />}
-                                    {filterYear === '2026' && <SortHeader field="cleanSheets" label="CS" />}
-                                    {filterYear === '2026' && <SortHeader field="goalsFor" label="GF" />}
-                                    {filterYear === '2026' && <SortHeader field="goalsAgainst" label="GA" />}
+                                    <SortHeader field="assists" label="A" />
+                                    <SortHeader field="goalContrib" label="G+A" />
+                                    <SortHeader field="cleanSheets" label="CS" />
+                                    <SortHeader field="goalsFor" label="GF" />
+                                    <SortHeader field="goalsAgainst" label="GA" />
                                     <SortHeader field="motms" label="MOTM" />
                                     <SortHeader field="overall" label="OVR" />
                                 </tr>
@@ -225,11 +195,11 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                             <td className="p-2 sm:p-3">{p.winRate.toFixed(1)}%</td>
                                             <td className="p-2 sm:p-3 text-white">{p.goals}</td>
                                             <td className="p-2 sm:p-3 text-white">{p.goalsPerGame.toFixed(2)}</td>
-                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.assists}</td>}
-                                            {filterYear === '2026' && <td className="p-2 sm:p-3 text-blue-400 font-bold">{p.goalContrib}</td>}
-                                            {filterYear === '2026' && <td className="p-2 sm:p-3 text-yellow-400">{p.cleanSheets}</td>}
-                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.goalsFor}</td>}
-                                            {filterYear === '2026' && <td className="p-2 sm:p-3">{p.goalsAgainst}</td>}
+                                            <td className="p-2 sm:p-3">{p.assists}</td>
+                                            <td className="p-2 sm:p-3 text-blue-400 font-bold">{p.goalContrib}</td>
+                                            <td className="p-2 sm:p-3 text-yellow-400">{p.cleanSheets}</td>
+                                            <td className="p-2 sm:p-3">{p.goalsFor}</td>
+                                            <td className="p-2 sm:p-3">{p.goalsAgainst}</td>
                                             <td className="p-2 sm:p-3 text-orange-400 font-bold">{p.motms || 0}</td>
                                             <td className="p-2 sm:p-3 font-bold text-yellow-500">{p.overall}</td>
                                         </tr>

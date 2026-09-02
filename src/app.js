@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 import { db, PROJECT_ID, COLLECTIONS } from './services/firebase';
-import { compressImage } from './utils/helpers';
+import { compressImage, getPlayerStats } from './utils/helpers';
 import SEED_DATA from './utils/seedData';
 
 // Hooks
@@ -167,25 +167,43 @@ export default function FridayNightFUT() {
   };
 
   const handleSeedData = async () => {
-    if (!window.confirm("This will add/update ALL historic player stats. Continue?")) return;
+    if (!window.confirm("This will update historic player baseline stats. Continue?")) return;
     const batch = writeBatch(db);
     let count = 0;
 
     SEED_DATA.forEach(p => {
       const existing = players.find(ep => ep.name.toLowerCase() === p.name.toLowerCase());
+      const updatedHistorical = {
+        gamesPlayed: p.gamesPlayed,
+        goals: p.goals,
+        wins: p.wins
+      };
+
       if (existing) {
         const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existing.id);
+        const allStats = getPlayerStats({ ...existing, historical: updatedHistorical }, matches, 'all');
         batch.update(ref, {
-          goals: p.goals,
-          wins: p.wins,
-          gamesPlayed: p.gamesPlayed
+          historical: updatedHistorical,
+          goals: allStats.goals,
+          wins: allStats.wins,
+          gamesPlayed: allStats.gamesPlayed,
+          assists: allStats.assists,
+          cleanSheets: allStats.cleanSheets,
+          motms: allStats.motms,
+          goalsFor: allStats.goalsFor,
+          goalsAgainst: allStats.goalsAgainst
         });
         count++;
       } else {
         const newRef = doc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS));
         batch.set(newRef, {
           ...p,
+          historical: updatedHistorical,
           assists: 0,
+          cleanSheets: 0,
+          motms: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
           createdAt: serverTimestamp()
         });
         count++;
@@ -358,6 +376,7 @@ export default function FridayNightFUT() {
       {view === 'players' && (
         <SquadView
           players={players}
+          matches={matches}
           checkins={checkins}
           authStatus={authStatus}
           user={user}
@@ -400,6 +419,7 @@ export default function FridayNightFUT() {
                     canEdit={authStatus.role === 'admin'}
                     onStatChange={authStatus.role === 'admin' ? handleStatChange : null}
                     streaks={playerStreaks[selectedPlayerForEdit.id]}
+                    seasonStats={getPlayerStats(selectedPlayerForEdit, matches, 'all')}
                     onEditRatings={() => {
                       setRatingsForm(selectedPlayerForEdit.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
                       setShowRatingsModal(true);

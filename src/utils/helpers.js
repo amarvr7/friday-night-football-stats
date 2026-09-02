@@ -1,7 +1,95 @@
+import SEED_DATA from './seedData';
+
 export const mapRating = (val) => {
     if (!val) return 60;
     const base = 35 + (val * 12);
     return Math.min(Math.round(base + (val > 4.5 ? 4 : 0)), 99);
+};
+
+// Retrieve pre-2026 historical baseline for a player
+export const getPlayerHistoricalBaseline = (player) => {
+    if (player.historical) {
+        return {
+            gamesPlayed: player.historical.gamesPlayed || 0,
+            goals: player.historical.goals || 0,
+            wins: player.historical.wins || 0,
+            assists: player.historical.assists || 0,
+            cleanSheets: player.historical.cleanSheets || 0,
+            goalsFor: player.historical.goalsFor || 0,
+            goalsAgainst: player.historical.goalsAgainst || 0,
+            motms: player.historical.motms || 0
+        };
+    }
+    const seed = SEED_DATA.find(s => s.name.toLowerCase() === (player.name || '').toLowerCase());
+    if (seed) {
+        return {
+            gamesPlayed: seed.gamesPlayed || 0,
+            goals: seed.goals || 0,
+            wins: seed.wins || 0,
+            assists: 0,
+            cleanSheets: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            motms: 0
+        };
+    }
+    return {
+        gamesPlayed: 0,
+        goals: 0,
+        wins: 0,
+        assists: 0,
+        cleanSheets: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        motms: 0
+    };
+};
+
+// Calculate unified, accurate stats for a player for a given season ('all' or '2026')
+export const getPlayerStats = (player, matches = [], season = 'all') => {
+    const is2026 = season === '2026';
+    
+    // Filter matches
+    const relevantMatches = is2026
+        ? matches.filter(m => {
+            if (!m.date) return false;
+            const d = new Date(m.date.seconds * 1000);
+            return d.getFullYear() === 2026;
+        })
+        : matches;
+
+    const matchStats = calculateStatsFromMatches(player, relevantMatches);
+    const s2026 = player.season2026 || {};
+    const baseline = is2026 
+        ? { gamesPlayed: 0, goals: 0, wins: 0, assists: 0, cleanSheets: 0, goalsFor: 0, goalsAgainst: 0, motms: 0 } 
+        : getPlayerHistoricalBaseline(player);
+
+    const goals = baseline.goals + matchStats.goals + (s2026.goals || 0);
+    const wins = baseline.wins + matchStats.wins + (s2026.wins || 0);
+    const gamesPlayed = baseline.gamesPlayed + matchStats.gamesPlayed + (s2026.games || 0);
+    const assists = baseline.assists + matchStats.assists + (s2026.assists || 0);
+    const cleanSheets = baseline.cleanSheets + matchStats.cleanSheets + (s2026.cleanSheets || 0);
+    const goalsFor = baseline.goalsFor + matchStats.goalsFor + (s2026.goalsFor || 0);
+    const goalsAgainst = baseline.goalsAgainst + matchStats.goalsAgainst + (s2026.goalsAgainst || 0);
+    const motms = baseline.motms + (matchStats.motms || 0) + (s2026.motms || 0);
+
+    const goalContrib = goals + assists;
+    const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
+    const goalsPerGame = gamesPlayed > 0 ? goals / gamesPlayed : 0;
+
+    return {
+        goals,
+        wins,
+        gamesPlayed,
+        assists,
+        cleanSheets,
+        goalsFor,
+        goalsAgainst,
+        motms,
+        goalContrib,
+        winRate,
+        goalsPerGame
+    };
 };
 
 // Calculate stats dynamically from a list of matches

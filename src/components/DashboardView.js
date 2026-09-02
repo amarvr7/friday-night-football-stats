@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Shirt, Zap, TrendingUp } from 'lucide-react';
 import CheckInSystem from './CheckInSystem';
 import LeaderboardRow from './LeaderboardRow';
-import { calculateOverall, calculateStatsFromMatches } from '../utils/helpers';
+import { calculateOverall, getPlayerStats } from '../utils/helpers';
 
 export default function DashboardView({
     players,
@@ -16,47 +16,10 @@ export default function DashboardView({
 }) {
     const [filterYear, setFilterYear] = useState('2026');
 
-    // 1. Filter Matches
-    const filteredMatches = useMemo(() => {
-        if (!matches) return [];
-        if (filterYear === 'all') return matches;
-        return matches.filter(m => {
-            if (!m.date) return false;
-            const date = new Date(m.date.seconds * 1000);
-            return date.getFullYear() === 2026;
-        });
-    }, [matches, filterYear]);
-
-    // 2. Process Players (Calculate 2026 stats if needed)
+    // Process Players with unified getPlayerStats
     const dashboardData = useMemo(() => {
         const data = players.map(p => {
-            let dynamicStats;
-            if (filterYear === '2026') {
-                const matchStats = calculateStatsFromMatches(p, filteredMatches);
-                dynamicStats = {
-                    goals: matchStats.goals + (p.season2026?.goals || 0),
-                    wins: matchStats.wins + (p.season2026?.wins || 0),
-                    gamesPlayed: matchStats.gamesPlayed + (p.season2026?.games || 0),
-                    assists: matchStats.assists + (p.season2026?.assists || 0),
-                    cleanSheets: matchStats.cleanSheets + (p.season2026?.cleanSheets || 0),
-                    goalsFor: matchStats.goalsFor + (p.season2026?.goalsFor || 0),
-                    goalsAgainst: matchStats.goalsAgainst + (p.season2026?.goalsAgainst || 0),
-                    motms: (matchStats.motms || 0) + (p.season2026?.motms || 0)
-                };
-                dynamicStats.goalContrib = dynamicStats.goals + dynamicStats.assists;
-            } else {
-                // All-Time: top-level stored stats (kept up to date by handleSaveMatch)
-                // plus imported season2026 stats which only live in the nested map.
-                dynamicStats = {
-                    goals: (p.goals || 0) + (p.season2026?.goals || 0),
-                    wins: (p.wins || 0) + (p.season2026?.wins || 0),
-                    gamesPlayed: (p.gamesPlayed || 0) + (p.season2026?.games || 0),
-                    assists: (p.assists || 0) + (p.season2026?.assists || 0),
-                    cleanSheets: (p.cleanSheets || 0) + (p.season2026?.cleanSheets || 0),
-                    goalContrib: (p.goals || 0) + (p.assists || 0) + (p.season2026?.goals || 0) + (p.season2026?.assists || 0),
-                    motms: (p.motms || 0) + (p.season2026?.motms || 0)
-                };
-            }
+            const dynamicStats = getPlayerStats(p, matches, filterYear);
 
             return {
                 ...p,
@@ -71,7 +34,7 @@ export default function DashboardView({
 
         // Sort by Overall
         return activePlayers.sort((a, b) => b.overall - a.overall);
-    }, [players, filteredMatches, filterYear, playerStreaks]);
+    }, [players, matches, filterYear, playerStreaks]);
 
 
 
@@ -254,7 +217,7 @@ export default function DashboardView({
                                 rank={idx + 1}
                                 overall={player.overall}
                                 stats={player}
-                                showAssists={filterYear === '2026'}
+                                showAssists={true}
                             />
                         </div>
                     ))}
