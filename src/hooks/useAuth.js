@@ -22,6 +22,7 @@ export default function useAuth() {
                 await signInAnonymously(auth);
             } catch (err) {
                 console.error("Auth error:", err);
+                setLoading(false);
             }
         };
         doAuth();
