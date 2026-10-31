@@ -198,17 +198,17 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
         const otherDefs = activeTeamDefs.filter(t => t.key !== def.key);
 
         return (
-            <div className={`flex-1 min-w-[240px] rounded-xl border ${def.border} bg-slate-900/50 p-4`}>
-                <h3 className={`text-lg font-bold mb-4 uppercase text-center border-b pb-2 ${def.text} ${def.border}`}>
+            <div className={`flex-1 min-w-0 rounded-xl border ${def.border} bg-slate-900/60 p-3.5 sm:p-4`}>
+                <h3 className={`text-base sm:text-lg font-bold mb-3 uppercase text-center border-b pb-2 ${def.text} ${def.border}`}>
                     {def.label} Team
-                    {isQuadMode && <span className="block text-[10px] font-mono text-slate-500 normal-case tracking-wider mt-1">Game {def.game}</span>}
+                    {isQuadMode && <span className="block text-[10px] font-mono text-slate-500 normal-case tracking-wider mt-0.5">Game {def.game}</span>}
                 </h3>
-                <div className="space-y-2 min-h-[200px]">
+                <div className="space-y-2 min-h-[160px]">
                     {teamList.map(p => (
-                        <div key={p.id} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+                        <div key={p.id} className="flex justify-between items-center bg-slate-800 p-2 rounded-lg border border-slate-700">
                             <div className="flex items-center gap-2 min-w-0">
-                                <span className="font-bold text-sm text-yellow-500 w-6 text-center flex-shrink-0">{getDynamicRating(p)}</span>
-                                <span className="text-white text-sm truncate">{p.name}</span>
+                                <span className="font-bold text-xs sm:text-sm text-yellow-500 w-6 text-center flex-shrink-0">{getDynamicRating(p)}</span>
+                                <span className="text-white text-xs sm:text-sm font-semibold truncate">{p.name}</span>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                                 {otherDefs.map(target => (
@@ -217,27 +217,27 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                                         onClick={() => movePlayer(p, def.key, target.key)}
                                         title={`Move to ${target.label}`}
                                         aria-label={`Move ${p.name} to ${target.label} team`}
-                                        className="p-1.5 rounded hover:bg-slate-700 transition-colors"
+                                        className="p-2 rounded-lg hover:bg-slate-700 transition-colors"
                                     >
-                                        <span className={`block w-3 h-3 rounded-full ${target.dot}`}></span>
+                                        <span className={`block w-3.5 h-3.5 rounded-full ${target.dot}`}></span>
                                     </button>
                                 ))}
                             </div>
                         </div>
                     ))}
                 </div>
-                <div className="mt-4 pt-2 border-t border-slate-700 text-center">
-                    <span className="text-slate-500 text-xs uppercase">Avg Rating</span>
-                    <div className="text-xl font-mono font-bold text-white">{teamAvg(teamList)}</div>
+                <div className="mt-3 pt-2 border-t border-slate-700 text-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold">Avg Rating</span>
+                    <div className="text-lg sm:text-xl font-mono font-bold text-white">{teamAvg(teamList)}</div>
                 </div>
             </div>
         );
     };
 
     return (
-        <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 h-full flex flex-col">
-            <div className="flex justify-between items-start md:items-center flex-col md:flex-row mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <div className="bg-slate-800/90 rounded-2xl p-4 sm:p-6 shadow-2xl border border-slate-700/80 flex flex-col">
+            <div className="flex justify-between items-start md:items-center flex-col md:flex-row mb-5 gap-3">
+                <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                     <Shirt className="text-purple-400" /> Team Sheet
                     {isQuadMode && (
                         <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -245,36 +245,36 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                         </span>
                     )}
                 </h2>
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={generateTeams} className="bg-purple-600 hover:bg-purple-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                        <Shuffle size={16} /> AI Generate {isQuadMode ? '(4 Teams)' : ''}
+                <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                    <button onClick={generateTeams} className="bg-purple-600 hover:bg-purple-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg flex-1 sm:flex-none">
+                        <Shuffle size={15} /> AI Generate {isQuadMode ? '(4 Teams)' : ''}
                     </button>
 
-                    <button onClick={handleClearTeams} title="Unpublish from Dashboard" className="bg-red-600/20 text-red-400 border border-red-500/50 hover:bg-red-600 hover:text-white px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all">
-                        <Trash2 size={16} /> Clear Teams
+                    <button onClick={handleClearTeams} title="Unpublish from Dashboard" className="bg-red-600/20 text-red-400 border border-red-500/50 hover:bg-red-600 hover:text-white px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all">
+                        <Trash2 size={15} /> Clear
                     </button>
 
                     {hasTeams && (
                         <>
-                            <button onClick={handleShare} className="bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                                <Share2 size={16} /> Share
+                            <button onClick={handleShare} className="bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg">
+                                <Share2 size={15} /> Share
                             </button>
                             {isQuadMode ? (
                                 <>
-                                    <button onClick={() => handleStartLive(1)} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                                        <Activity size={16} /> Live Game 1
+                                    <button onClick={() => handleStartLive(1)} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg">
+                                        <Activity size={15} /> Live Game 1
                                     </button>
-                                    <button onClick={() => handleStartLive(2)} className="bg-emerald-700 hover:bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                                        <Activity size={16} /> Live Game 2
+                                    <button onClick={() => handleStartLive(2)} className="bg-emerald-700 hover:bg-emerald-600 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg">
+                                        <Activity size={15} /> Live Game 2
                                     </button>
                                 </>
                             ) : (
-                                <button onClick={() => handleStartLive(1)} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg animate-pulse">
-                                    <Activity size={16} /> Start Live Match
+                                <button onClick={() => handleStartLive(1)} className="bg-green-600 hover:bg-green-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg animate-pulse">
+                                    <Activity size={15} /> Start Live
                                 </button>
                             )}
-                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg">
-                                <Send size={16} /> {isQuadMode ? 'Publish Both Games' : 'Publish'}
+                            <button onClick={handlePublish} className="bg-slate-600 hover:bg-slate-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg">
+                                <Send size={15} /> {isQuadMode ? 'Publish Both' : 'Publish'}
                             </button>
                         </>
                     )}
@@ -285,19 +285,19 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                 <div className="space-y-6">
                     <div>
                         <h3 className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-3">⚽ Game 1 — Kickoff First</h3>
-                        <div className="flex gap-4 overflow-x-auto pb-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {TEAM_DEFS.filter(t => t.game === 1).map(def => <TeamColumn key={def.key} def={def} />)}
                         </div>
                     </div>
                     <div>
                         <h3 className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-3">⚽ Game 2 — Straight After</h3>
-                        <div className="flex gap-4 overflow-x-auto pb-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {TEAM_DEFS.filter(t => t.game === 2).map(def => <TeamColumn key={def.key} def={def} />)}
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="flex gap-4 overflow-x-auto pb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {activeTeamDefs.map(def => <TeamColumn key={def.key} def={def} />)}
                 </div>
             )}

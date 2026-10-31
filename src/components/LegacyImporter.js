@@ -197,6 +197,17 @@ const LegacyImporter = ({ onComplete, onCancel }) => {
                     mergedPayload.goals = (existing?.goals || 0) + safeGoals;
                     mergedPayload.wins = (existing?.wins || 0) + safeWins;
                     mergedPayload.gamesPlayed = (existing?.gamesPlayed || 0) + safeGames;
+                    mergedPayload.historical = {
+                        ...(existing?.historical || {}),
+                        goals: (existing?.historical?.goals || 0) + safeGoals,
+                        wins: (existing?.historical?.wins || 0) + safeWins,
+                        gamesPlayed: (existing?.historical?.gamesPlayed || 0) + safeGames,
+                        assists: (existing?.historical?.assists || 0) + safeAssists,
+                        cleanSheets: (existing?.historical?.cleanSheets || 0) + safeCleanSheets,
+                        goalsFor: (existing?.historical?.goalsFor || 0) + safeGoalsFor,
+                        goalsAgainst: (existing?.historical?.goalsAgainst || 0) + safeGoalsAgainst,
+                        motms: (existing?.historical?.motms || 0) + safeMotms
+                    };
                 } else if (importType === '2026') {
                     mergedPayload.season2026 = {
                         goals: (existing?.season2026?.goals || 0) + safeGoals,

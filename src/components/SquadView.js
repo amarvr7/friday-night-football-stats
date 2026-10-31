@@ -63,24 +63,28 @@ export default function SquadView({
                     return (
                         <div
                             key={p.id}
-                            onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit({ ...p, ...pStats }); }}
-                            className={`flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 group min-h-[64px] ${authStatus.role === 'admin' ? 'cursor-pointer hover:border-slate-600 active:bg-slate-850' : ''}`}
+                            onClick={() => setSelectedPlayerForEdit({ ...p, ...pStats }, 'all')}
+                            className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800 hover:border-slate-600 active:bg-slate-800/80 cursor-pointer group min-h-[64px] transition-colors"
                         >
-                            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                            <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
                                 <div className="relative flex-shrink-0">
                                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border border-slate-700">
                                         <img src={p.photoUrl || '/logo.png'} alt={p.name} className="w-full h-full object-cover" />
                                     </div>
-                                    {status === 'in' && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900"></div>}
-                                    {status === 'waitlist' && <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-slate-900"></div>}
+                                    {status === 'in' && <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-slate-900"></div>}
+                                    {status === 'waitlist' && <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-orange-500 rounded-full border-2 border-slate-900"></div>}
                                 </div>
-                                <span className="font-bold text-slate-200 text-sm sm:text-base truncate">{p.name}</span>
+                                <div className="min-w-0 flex-1">
+                                    <span className="font-bold text-slate-100 text-sm sm:text-base truncate block">{p.name}</span>
+                                    <span className="text-[11px] text-slate-400">
+                                        {pStats.gamesPlayed} Apps · {pStats.goals} G · {pStats.assists} A
+                                    </span>
+                                </div>
                             </div>
-                            <div className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-2 flex-shrink-0">
-                                {status === 'in' && <span className="text-green-400 font-bold uppercase text-[9px] sm:text-[10px]">Playing</span>}
-                                {status === 'waitlist' && <span className="text-orange-400 font-bold uppercase text-[9px] sm:text-[10px]">Waitlist</span>}
-                                <span className="ml-1 sm:ml-2">{pStats.gamesPlayed} Apps</span>
-                                {authStatus.role === 'admin' && <div className="opacity-0 group-hover:opacity-100 bg-slate-700 p-1 rounded-full text-white"><Camera size={12} /></div>}
+                            <div className="text-[10px] sm:text-xs text-slate-500 flex items-center gap-2 flex-shrink-0 ml-2">
+                                {status === 'in' && <span className="bg-green-500/15 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full font-bold uppercase text-[9px] sm:text-[10px]">Playing</span>}
+                                {status === 'waitlist' && <span className="bg-orange-500/15 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-bold uppercase text-[9px] sm:text-[10px]">Waitlist</span>}
+                                {authStatus.role === 'admin' && <div className="opacity-70 group-hover:opacity-100 bg-slate-800 p-1.5 rounded-full text-slate-300 border border-slate-700"><Camera size={12} /></div>}
                             </div>
                         </div>
                     );

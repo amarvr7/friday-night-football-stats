@@ -11,12 +11,20 @@ export default function AdminTools({ user, players, availableLegends, setShowImp
     const handleAddPlayer = async (e) => {
         e.preventDefault();
         if (!newPlayerName.trim() || !user) return;
+        const trimmed = newPlayerName.trim();
+        const seedPlayer = SEED_DATA.find(p => p.name.toLowerCase() === trimmed.toLowerCase());
+        const historical = seedPlayer
+            ? { gamesPlayed: seedPlayer.gamesPlayed || 0, goals: seedPlayer.goals || 0, wins: seedPlayer.wins || 0 }
+            : { gamesPlayed: 0, goals: 0, wins: 0 };
+
         await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS), {
-            name: newPlayerName.trim(),
-            goals: 0,
+            name: seedPlayer ? seedPlayer.name : trimmed,
+            goals: historical.goals,
             assists: 0,
-            wins: 0,
-            gamesPlayed: 0,
+            wins: historical.wins,
+            gamesPlayed: historical.gamesPlayed,
+            historical,
+            ...(seedPlayer?.ratings ? { ratings: seedPlayer.ratings } : {}),
             createdAt: serverTimestamp()
         });
         setNewPlayerName('');
@@ -30,19 +38,29 @@ export default function AdminTools({ user, players, availableLegends, setShowImp
         if (!seedPlayer) return;
 
         const existingPlayer = players.find(p => p.name.toLowerCase() === seedPlayer.name.toLowerCase());
+        const historical = {
+            gamesPlayed: seedPlayer.gamesPlayed || 0,
+            goals: seedPlayer.goals || 0,
+            wins: seedPlayer.wins || 0
+        };
 
         try {
             if (existingPlayer) {
                 const ref = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, existingPlayer.id);
                 await updateDoc(ref, {
+                    historical: {
+                        ...(existingPlayer.historical || {}),
+                        ...historical
+                    },
                     goals: seedPlayer.goals,
                     wins: seedPlayer.wins,
                     gamesPlayed: seedPlayer.gamesPlayed
                 });
-                alert(`Updated ${seedPlayer.name}'s stats!`);
+                alert(`Updated ${seedPlayer.name}'s baseline stats!`);
             } else {
                 await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS), {
                     ...seedPlayer,
+                    historical,
                     assists: 0,
                     createdAt: serverTimestamp()
                 });

@@ -6,43 +6,53 @@ export const mapRating = (val) => {
     return Math.min(Math.round(base + (val > 4.5 ? 4 : 0)), 99);
 };
 
-// Retrieve pre-2026 historical baseline for a player
-export const getPlayerHistoricalBaseline = (player) => {
-    if (player.historical) {
-        return {
-            gamesPlayed: player.historical.gamesPlayed || 0,
-            goals: player.historical.goals || 0,
-            wins: player.historical.wins || 0,
-            assists: player.historical.assists || 0,
-            cleanSheets: player.historical.cleanSheets || 0,
-            goalsFor: player.historical.goalsFor || 0,
-            goalsAgainst: player.historical.goalsAgainst || 0,
-            motms: player.historical.motms || 0
-        };
+// Helper to determine if a match belongs to the 2026 season
+export const isMatchIn2026 = (m) => {
+    if (!m) return false;
+    // Newly created match with pending serverTimestamp() belongs to current (2026) season
+    if (!m.date) return true;
+    if (typeof m.date.seconds === 'number') {
+        return new Date(m.date.seconds * 1000).getFullYear() === 2026;
     }
+    if (typeof m.date.toDate === 'function') {
+        return m.date.toDate().getFullYear() === 2026;
+    }
+    const parsed = new Date(m.date);
+    return !isNaN(parsed.getTime()) ? parsed.getFullYear() === 2026 : true;
+};
+
+// Retrieve pre-2026 historical baseline for a player, reconciling any top-level legacy edits
+export const getPlayerHistoricalBaseline = (player, allMatchStats = null) => {
     const seed = SEED_DATA.find(s => s.name.toLowerCase() === (player.name || '').toLowerCase());
-    if (seed) {
-        return {
-            gamesPlayed: seed.gamesPlayed || 0,
-            goals: seed.goals || 0,
-            wins: seed.wins || 0,
-            assists: 0,
-            cleanSheets: 0,
-            goalsFor: 0,
-            goalsAgainst: 0,
-            motms: 0
-        };
-    }
-    return {
-        gamesPlayed: 0,
-        goals: 0,
-        wins: 0,
-        assists: 0,
-        cleanSheets: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        motms: 0
+
+    const base = {
+        gamesPlayed: player.historical?.gamesPlayed ?? (seed?.gamesPlayed || 0),
+        goals: player.historical?.goals ?? (seed?.goals || 0),
+        wins: player.historical?.wins ?? (seed?.wins || 0),
+        assists: player.historical?.assists ?? 0,
+        cleanSheets: player.historical?.cleanSheets ?? 0,
+        goalsFor: player.historical?.goalsFor ?? 0,
+        goalsAgainst: player.historical?.goalsAgainst ?? 0,
+        motms: player.historical?.motms ?? 0,
+        ownGoals: player.historical?.ownGoals ?? 0,
+        hatTricks: player.historical?.hatTricks ?? 0
     };
+
+    // If top-level player fields were manually incremented via All-Time Quick Stats or Legacy Importer
+    // without updating player.historical, recover the difference so no tracked stats are lost.
+    if (!player.historical && allMatchStats) {
+        const fields = ['gamesPlayed', 'goals', 'wins', 'assists', 'cleanSheets', 'goalsFor', 'goalsAgainst', 'motms', 'ownGoals'];
+        fields.forEach(f => {
+            const topLevelVal = typeof player[f] === 'number' ? player[f] : 0;
+            const matchVal = allMatchStats[f] || 0;
+            const impliedBaseline = Math.max(0, topLevelVal - matchVal);
+            if (impliedBaseline > base[f]) {
+                base[f] = impliedBaseline;
+            }
+        });
+    }
+
+    return base;
 };
 
 // Calculate unified, accurate stats for a player for a given season ('all' or '2026')
@@ -51,27 +61,26 @@ export const getPlayerStats = (player, matches = [], season = 'all') => {
     
     // Filter matches
     const relevantMatches = is2026
-        ? matches.filter(m => {
-            if (!m.date) return false;
-            const d = new Date(m.date.seconds * 1000);
-            return d.getFullYear() === 2026;
-        })
+        ? matches.filter(isMatchIn2026)
         : matches;
 
     const matchStats = calculateStatsFromMatches(player, relevantMatches);
+    const allMatchStats = is2026 ? null : matchStats;
     const s2026 = player.season2026 || {};
     const baseline = is2026 
-        ? { gamesPlayed: 0, goals: 0, wins: 0, assists: 0, cleanSheets: 0, goalsFor: 0, goalsAgainst: 0, motms: 0 } 
-        : getPlayerHistoricalBaseline(player);
+        ? { gamesPlayed: 0, goals: 0, wins: 0, assists: 0, cleanSheets: 0, goalsFor: 0, goalsAgainst: 0, motms: 0, ownGoals: 0, hatTricks: 0 } 
+        : getPlayerHistoricalBaseline(player, allMatchStats);
 
-    const goals = baseline.goals + matchStats.goals + (s2026.goals || 0);
-    const wins = baseline.wins + matchStats.wins + (s2026.wins || 0);
-    const gamesPlayed = baseline.gamesPlayed + matchStats.gamesPlayed + (s2026.games || 0);
-    const assists = baseline.assists + matchStats.assists + (s2026.assists || 0);
-    const cleanSheets = baseline.cleanSheets + matchStats.cleanSheets + (s2026.cleanSheets || 0);
-    const goalsFor = baseline.goalsFor + matchStats.goalsFor + (s2026.goalsFor || 0);
-    const goalsAgainst = baseline.goalsAgainst + matchStats.goalsAgainst + (s2026.goalsAgainst || 0);
-    const motms = baseline.motms + (matchStats.motms || 0) + (s2026.motms || 0);
+    const goals = Math.max(0, baseline.goals + matchStats.goals + (s2026.goals || 0));
+    const wins = Math.max(0, baseline.wins + matchStats.wins + (s2026.wins || 0));
+    const gamesPlayed = Math.max(0, baseline.gamesPlayed + matchStats.gamesPlayed + (s2026.games || 0));
+    const assists = Math.max(0, baseline.assists + matchStats.assists + (s2026.assists || 0));
+    const cleanSheets = Math.max(0, baseline.cleanSheets + matchStats.cleanSheets + (s2026.cleanSheets || 0));
+    const goalsFor = Math.max(0, baseline.goalsFor + matchStats.goalsFor + (s2026.goalsFor || 0));
+    const goalsAgainst = Math.max(0, baseline.goalsAgainst + matchStats.goalsAgainst + (s2026.goalsAgainst || 0));
+    const motms = Math.max(0, baseline.motms + (matchStats.motms || 0) + (s2026.motms || 0));
+    const ownGoals = Math.max(0, (baseline.ownGoals || 0) + (matchStats.ownGoals || 0) + (s2026.ownGoals || 0));
+    const hatTricks = Math.max(0, (baseline.hatTricks || 0) + (matchStats.hatTricks || 0) + (s2026.hatTricks || 0));
 
     const goalContrib = goals + assists;
     const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
@@ -86,6 +95,8 @@ export const getPlayerStats = (player, matches = [], season = 'all') => {
         goalsFor,
         goalsAgainst,
         motms,
+        ownGoals,
+        hatTricks,
         goalContrib,
         winRate,
         goalsPerGame
@@ -93,7 +104,7 @@ export const getPlayerStats = (player, matches = [], season = 'all') => {
 };
 
 // Calculate stats dynamically from a list of matches
-export const calculateStatsFromMatches = (player, matches) => {
+export const calculateStatsFromMatches = (player, matches = []) => {
     let stats = {
         goals: 0,
         wins: 0,
@@ -102,21 +113,25 @@ export const calculateStatsFromMatches = (player, matches) => {
         cleanSheets: 0,
         goalsFor: 0,
         goalsAgainst: 0,
+        ownGoals: 0,
         hatTricks: 0,
         motms: 0
     };
+
+    if (!player) return stats;
 
     matches.forEach(m => {
         const pStats = m.stats && m.stats[player.id];
         if (pStats) {
             stats.gamesPlayed++;
-            stats.goals += (pStats.goals || 0);
-            stats.wins += (pStats.win || 0);
-            stats.assists += (pStats.assists || 0);
+            stats.goals += (Number(pStats.goals) || 0);
+            stats.wins += (Number(pStats.win) || 0);
+            stats.assists += (Number(pStats.assists) || 0);
             if (pStats.cleanSheet) stats.cleanSheets++;
-            stats.goalsFor += (pStats.goalsFor || 0);
-            stats.goalsAgainst += (pStats.goalsAgainst || 0);
-            if ((pStats.goals || 0) >= 3) stats.hatTricks++;
+            stats.goalsFor += (Number(pStats.goalsFor) || 0);
+            stats.goalsAgainst += (Number(pStats.goalsAgainst) || 0);
+            stats.ownGoals += (Number(pStats.ownGoals) || 0);
+            if ((Number(pStats.goals) || 0) >= 3) stats.hatTricks++;
         }
         if (m.motm === player.id) stats.motms++;
     });

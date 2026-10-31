@@ -6,7 +6,8 @@ import {
   doc,
   serverTimestamp,
   writeBatch,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 import {
   X,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 
 import { db, PROJECT_ID, COLLECTIONS } from './services/firebase';
-import { compressImage, getPlayerStats } from './utils/helpers';
+import { compressImage, getPlayerStats, getPlayerHistoricalBaseline, calculateStatsFromMatches } from './utils/helpers';
 import SEED_DATA from './utils/seedData';
 
 // Hooks
@@ -46,6 +47,7 @@ export default function FridayNightFUT() {
   const [view, setView] = useState('dashboard');
   const [showImporter, setShowImporter] = useState(false);
   const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null);
+  const [selectedPlayerSeason, setSelectedPlayerSeason] = useState('2026');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [matchSetup, setMatchSetup] = useState(null); // Pre-filled match data from Team Generator
   const [editingMatch, setEditingMatch] = useState(null); // State for editing an existing match
@@ -54,6 +56,18 @@ export default function FridayNightFUT() {
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
   const [ratingsForm, setRatingsForm] = useState({ fitness: 3, control: 3, shooting: 3, defense: 3 });
+
+  const handleSelectPlayer = (player, season = 'all') => {
+    setSelectedPlayerForEdit(player);
+    setSelectedPlayerSeason(season);
+    setShowRatingsModal(false);
+  };
+
+  // Always use the freshest player object from Firestore listener when modal is open
+  const activePlayerForModal = useMemo(() => {
+    if (!selectedPlayerForEdit) return null;
+    return players.find(p => p.id === selectedPlayerForEdit.id) || selectedPlayerForEdit;
+  }, [players, selectedPlayerForEdit]);
 
   // Players Available for Quick Add (SHOW ALL LEGENDS, even if in DB, to allow updates)
   const availableLegends = useMemo(() => {
@@ -67,6 +81,8 @@ export default function FridayNightFUT() {
         stats: matchData,
         motm: matchInfo.motm || null,
         pkWinner: matchInfo.pkWinner || null,
+        ...(matchInfo.pkAttempts ? { pkAttempts: matchInfo.pkAttempts } : {}),
+        ...(matchInfo.teamLabels ? { teamLabels: matchInfo.teamLabels } : {}),
         blueOwnGoals: matchInfo.blueOwnGoals || 0,
         whiteOwnGoals: matchInfo.whiteOwnGoals || 0
       });
@@ -77,8 +93,8 @@ export default function FridayNightFUT() {
       const allPlayerIds = new Set([...Object.keys(oldStats), ...Object.keys(matchData)]);
 
       for (const pid of allPlayerIds) {
-        const oldP = oldStats[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0 };
-        const newP = matchData[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0 };
+        const oldP = oldStats[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0, ownGoals: 0 };
+        const newP = matchData[pid] || { goals: 0, assists: 0, win: 0, cleanSheet: 0, goalsFor: 0, goalsAgainst: 0, ownGoals: 0 };
         const player = players.find(p => p.id === pid);
         if (player) {
           const isOldMotm = oldMotm === pid;
@@ -86,14 +102,15 @@ export default function FridayNightFUT() {
 
           const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
           batch.update(playerRef, {
-            goals: Math.max(0, (player.goals || 0) - oldP.goals + newP.goals),
-            assists: Math.max(0, (player.assists || 0) - oldP.assists + newP.assists),
+            goals: Math.max(0, (player.goals || 0) - (oldP.goals || 0) + (newP.goals || 0)),
+            assists: Math.max(0, (player.assists || 0) - (oldP.assists || 0) + (newP.assists || 0)),
             wins: Math.max(0, (player.wins || 0) - (oldP.win || 0) + (newP.win || 0)),
             gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - (oldStats[pid] ? 1 : 0) + (matchData[pid] ? 1 : 0)),
             motms: Math.max(0, (player.motms || 0) - (isOldMotm ? 1 : 0) + (isNewMotm ? 1 : 0)),
             cleanSheets: Math.max(0, (player.cleanSheets || 0) - (oldP.cleanSheet ? 1 : 0) + (newP.cleanSheet ? 1 : 0)),
             goalsFor: Math.max(0, (player.goalsFor || 0) - (oldP.goalsFor || 0) + (newP.goalsFor || 0)),
-            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (oldP.goalsAgainst || 0) + (newP.goalsAgainst || 0))
+            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (oldP.goalsAgainst || 0) + (newP.goalsAgainst || 0)),
+            ownGoals: Math.max(0, (player.ownGoals || 0) - (oldP.ownGoals || 0) + (newP.ownGoals || 0))
           });
         }
       }
@@ -106,6 +123,8 @@ export default function FridayNightFUT() {
         createdBy: user.uid,
         motm: matchInfo.motm || null,
         pkWinner: matchInfo.pkWinner || null,
+        ...(matchInfo.pkAttempts ? { pkAttempts: matchInfo.pkAttempts } : {}),
+        ...(matchInfo.teamLabels ? { teamLabels: matchInfo.teamLabels } : {}),
         blueOwnGoals: matchInfo.blueOwnGoals || 0,
         whiteOwnGoals: matchInfo.whiteOwnGoals || 0
       });
@@ -118,14 +137,15 @@ export default function FridayNightFUT() {
           const isMotm = matchInfo.motm === pid;
           const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
           await updateDoc(playerRef, {
-            goals: (player.goals || 0) + stats.goals,
-            assists: (player.assists || 0) + stats.assists,
+            goals: (player.goals || 0) + (stats.goals || 0),
+            assists: (player.assists || 0) + (stats.assists || 0),
             wins: (player.wins || 0) + (stats.win || 0),
             gamesPlayed: (player.gamesPlayed || 0) + 1,
             motms: (player.motms || 0) + (isMotm ? 1 : 0),
             cleanSheets: (player.cleanSheets || 0) + (stats.cleanSheet ? 1 : 0),
             goalsFor: (player.goalsFor || 0) + (stats.goalsFor || 0),
-            goalsAgainst: (player.goalsAgainst || 0) + (stats.goalsAgainst || 0)
+            goalsAgainst: (player.goalsAgainst || 0) + (stats.goalsAgainst || 0),
+            ownGoals: (player.ownGoals || 0) + (stats.ownGoals || 0)
           });
         }
       }
@@ -146,14 +166,15 @@ export default function FridayNightFUT() {
           const isMotm = match.motm === pid;
           const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, pid);
           batch.update(playerRef, {
-            goals: Math.max(0, (player.goals || 0) - stats.goals),
-            assists: Math.max(0, (player.assists || 0) - stats.assists),
+            goals: Math.max(0, (player.goals || 0) - (stats.goals || 0)),
+            assists: Math.max(0, (player.assists || 0) - (stats.assists || 0)),
             wins: Math.max(0, (player.wins || 0) - (stats.win || 0)),
             gamesPlayed: Math.max(0, (player.gamesPlayed || 0) - 1),
             motms: Math.max(0, (player.motms || 0) - (isMotm ? 1 : 0)),
             cleanSheets: Math.max(0, (player.cleanSheets || 0) - (stats.cleanSheet ? 1 : 0)),
             goalsFor: Math.max(0, (player.goalsFor || 0) - (stats.goalsFor || 0)),
-            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (stats.goalsAgainst || 0))
+            goalsAgainst: Math.max(0, (player.goalsAgainst || 0) - (stats.goalsAgainst || 0)),
+            ownGoals: Math.max(0, (player.ownGoals || 0) - (stats.ownGoals || 0))
           });
         }
       }
@@ -230,15 +251,28 @@ export default function FridayNightFUT() {
     setShowRatingsModal(false);
   };
 
-  const handleStatChange = async (statName, change) => {
-    if (!selectedPlayerForEdit) return;
-    const currentValue = selectedPlayerForEdit[statName] || 0;
-    const newValue = Math.max(0, currentValue + change);
-    
+  const handleStatChange = async (statName, change, targetSeason = 'all') => {
+    if (!activePlayerForModal) return;
+    const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, activePlayerForModal.id);
+
     try {
-      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
-      await updateDoc(playerRef, { [statName]: newValue });
-      setSelectedPlayerForEdit({ ...selectedPlayerForEdit, [statName]: newValue });
+      const updates = {};
+      if (targetSeason === '2026') {
+        const s2026Field = statName === 'gamesPlayed' ? 'games' : statName;
+        updates[`season2026.${s2026Field}`] = increment(change);
+        updates[statName] = increment(change);
+      } else {
+        const allMatchStats = calculateStatsFromMatches(activePlayerForModal, matches);
+        const currentHistorical = getPlayerHistoricalBaseline(activePlayerForModal, allMatchStats);
+        if (!activePlayerForModal.historical) {
+          Object.keys(currentHistorical).forEach(k => {
+            updates[`historical.${k}`] = currentHistorical[k] || 0;
+          });
+        }
+        updates[`historical.${statName}`] = Math.max(0, (currentHistorical[statName] || 0) + change);
+        updates[statName] = Math.max(0, (activePlayerForModal[statName] || 0) + change);
+      }
+      await updateDoc(playerRef, updates);
     } catch (err) {
       console.error("Stat update failed", err);
       alert("Failed to update stat: " + err.message);
@@ -246,11 +280,11 @@ export default function FridayNightFUT() {
   };
 
   const handleRemovePhoto = async () => {
-    if (!selectedPlayerForEdit) return;
+    if (!activePlayerForModal) return;
     try {
-      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
+      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, activePlayerForModal.id);
       await updateDoc(playerRef, { photoUrl: null });
-      setSelectedPlayerForEdit({ ...selectedPlayerForEdit, photoUrl: null });
+      setSelectedPlayerForEdit({ ...activePlayerForModal, photoUrl: null });
     } catch (err) {
       console.error("Error removing photo", err);
       alert("Failed to remove photo.");
@@ -258,11 +292,11 @@ export default function FridayNightFUT() {
   };
 
   const handleDeletePlayer = async () => {
-    if (!selectedPlayerForEdit) return;
+    if (!activePlayerForModal) return;
     try {
-      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayerForEdit.id);
+      const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, activePlayerForModal.id);
       await deleteDoc(playerRef);
-      const playerName = selectedPlayerForEdit.name;
+      const playerName = activePlayerForModal.name;
       setSelectedPlayerForEdit(null);
       setShowDeleteConfirm(false);
       setTimeout(() => alert(`${playerName} has been removed from the squad.`), 100);
@@ -318,9 +352,9 @@ export default function FridayNightFUT() {
           sortedPlayers={sortedPlayers}
           playerStreaks={playerStreaks}
           checkins={checkins}
-          matches={matches} // NEW: Pass matches for local 2026 filtering
+          matches={matches}
           authStatus={authStatus}
-          setSelectedPlayerForEdit={setSelectedPlayerForEdit}
+          setSelectedPlayerForEdit={handleSelectPlayer}
         />
       )}
 
@@ -336,6 +370,7 @@ export default function FridayNightFUT() {
       {view === 'add-match' && authStatus.role === 'admin' && (
         <StatsLogger
           players={players}
+          matches={matches}
           onBack={() => setView('dashboard')}
         />
       )}
@@ -365,7 +400,7 @@ export default function FridayNightFUT() {
           players={players}
           matches={matches}
           playerStreaks={playerStreaks}
-          onSelectPlayer={(p) => setSelectedPlayerForEdit(p)}
+          onSelectPlayer={handleSelectPlayer}
           onAddMatch={() => { setMatchSetup(null); setEditingMatch(null); setView('log-match'); }}
           onEditMatch={(m) => { setEditingMatch(m); setView('log-match'); }}
           onDeleteMatch={handleDeleteMatch}
@@ -383,7 +418,7 @@ export default function FridayNightFUT() {
           availableLegends={availableLegends}
           setShowImporter={setShowImporter}
           handleSeedData={handleSeedData}
-          setSelectedPlayerForEdit={setSelectedPlayerForEdit}
+          setSelectedPlayerForEdit={handleSelectPlayer}
           setView={setView}
         />
       )}
@@ -394,34 +429,43 @@ export default function FridayNightFUT() {
           matches={matches}
           playerStreaks={playerStreaks}
           userRole={authStatus.role}
-          handleUploadRecords={(csv) => console.log(csv)}
+          onSelectPlayer={handleSelectPlayer}
         />
       )}
 
       {/* MODALS */}
-      {selectedPlayerForEdit && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={() => setSelectedPlayerForEdit(null)}>
-          <div className="relative max-w-sm w-full my-8" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setSelectedPlayerForEdit(null)}
-              className="absolute -top-10 right-0 text-white/80 hover:text-white p-2 flex items-center gap-1"
-            >
-              <span className="text-sm font-bold uppercase">Close</span> <X size={24} />
-            </button>
+      {activePlayerForModal && (
+        <div
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-4 pt-safe pb-safe overflow-y-auto"
+          onClick={() => setSelectedPlayerForEdit(null)}
+        >
+          <div className="relative max-w-md w-full my-3 sm:my-8" onClick={(e) => e.stopPropagation()}>
+            {/* Reachable Top Bar inside Viewport */}
+            <div className="flex justify-between items-center mb-2.5 px-1">
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400">Player Card</span>
+              <button
+                onClick={() => setSelectedPlayerForEdit(null)}
+                className="bg-slate-800/90 hover:bg-slate-700 text-white px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-1.5 text-xs font-bold shadow-lg"
+              >
+                <span>Close</span> <X size={16} />
+              </button>
+            </div>
 
             {!showRatingsModal ? (
               <>
-                <div className="mb-6">
+                <div className="mb-4">
                   <ModernPlayerProfile
-                    player={selectedPlayerForEdit}
-                    rank={sortedPlayers.findIndex(p => p.id === selectedPlayerForEdit.id) + 1}
+                    player={activePlayerForModal}
+                    matches={matches}
+                    initialSeason={selectedPlayerSeason}
+                    rank={sortedPlayers.findIndex(p => p.id === activePlayerForModal.id) + 1}
                     onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()}
                     canEdit={authStatus.role === 'admin'}
                     onStatChange={authStatus.role === 'admin' ? handleStatChange : null}
-                    streaks={playerStreaks[selectedPlayerForEdit.id]}
-                    seasonStats={getPlayerStats(selectedPlayerForEdit, matches, 'all')}
+                    streaks={playerStreaks[activePlayerForModal.id]}
+                    seasonStats={getPlayerStats(activePlayerForModal, matches, selectedPlayerSeason)}
                     onEditRatings={() => {
-                      setRatingsForm(selectedPlayerForEdit.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
+                      setRatingsForm(activePlayerForModal.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
                       setShowRatingsModal(true);
                     }}
                   />
@@ -429,38 +473,39 @@ export default function FridayNightFUT() {
 
                 {/* Admin Upload Controls */}
                 {authStatus.role === 'admin' && (
-                  <div className="bg-slate-800 rounded-xl p-4 mb-4">
-                    <p className="text-slate-400 text-sm mb-4">Tap card photo to upload image.</p>
+                  <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-3.5 mb-3">
                     <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files[0]) handleImageUpload(e.target.files[0]); }} />
-                    <button onClick={() => document.getElementById('photo-upload').click()} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mb-3">
-                      <Upload size={18} /> Upload Photo
-                    </button>
-                    {selectedPlayerForEdit.photoUrl && (
-                      <button onClick={handleRemovePhoto} className="w-full bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-lg flex items-center justify-center gap-2 mb-3">
-                        <X size={18} /> Remove Photo
+                    <div className="flex gap-2">
+                      <button onClick={() => document.getElementById('photo-upload').click()} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm">
+                        <Upload size={15} /> {activePlayerForModal.photoUrl ? 'Change Photo' : 'Upload Photo'}
                       </button>
-                    )}
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-red-400 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <Trash2 size={18} /> Delete Player
-                    </button>
+                      {activePlayerForModal.photoUrl && (
+                        <button onClick={handleRemovePhoto} className="bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm">
+                          <X size={15} /> Remove
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-400 font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm transition-colors"
+                        title="Delete Player"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Explicit Back Button for mobile users */}
                 <button
                   onClick={() => setSelectedPlayerForEdit(null)}
-                  className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-lg transition-all"
+                  className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-sm"
                 >
                   Close Card
                 </button>
               </>
             ) : (
-              <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700">
+              <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-700">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                     <Sliders size={20} className="text-yellow-500" /> Edit Attributes
                   </h3>
                   <button onClick={() => setShowRatingsModal(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
@@ -485,7 +530,7 @@ export default function FridayNightFUT() {
 
                 <button
                   onClick={handleSaveRatings}
-                  className="w-full mt-8 bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg"
+                  className="w-full mt-8 bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg"
                 >
                   Save Attributes
                 </button>

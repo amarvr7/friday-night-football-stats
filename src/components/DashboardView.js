@@ -126,7 +126,7 @@ export default function DashboardView({
                         {isQuad && (
                             <h3 className="text-slate-400 font-bold uppercase text-[10px] sm:text-xs tracking-wider mb-3 relative z-10">⚽ Game 1 — Kickoff First</h3>
                         )}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10">
+                        <div className="grid grid-cols-2 gap-3 sm:gap-8 relative z-10">
                             <TeamList title="Blue Team" ids={upcomingTeams.blue} titleClass="text-blue-400" rowClass="bg-slate-800 text-white" />
                             <TeamList title="White Team" ids={upcomingTeams.white} titleClass="text-white" rowClass="bg-slate-700 text-slate-200" />
                         </div>
@@ -134,7 +134,7 @@ export default function DashboardView({
                         {isQuad && (
                             <>
                                 <h3 className="text-slate-400 font-bold uppercase text-[10px] sm:text-xs tracking-wider mt-6 mb-3 relative z-10">⚽ Game 2 — Straight After</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10">
+                                <div className="grid grid-cols-2 gap-3 sm:gap-8 relative z-10">
                                     <TeamList title="Red Team" ids={upcomingTeams.red} titleClass="text-red-400" rowClass="bg-red-900/30 text-white border border-red-500/20" />
                                     <TeamList title="Green Team" ids={upcomingTeams.green} titleClass="text-green-400" rowClass="bg-green-900/30 text-white border border-green-500/20" />
                                 </div>
@@ -149,36 +149,36 @@ export default function DashboardView({
             })()}
 
             <section>
-                <div className="flex justify-between items-end mb-4">
-                    <h2 className="text-slate-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                        <Zap size={16} /> Current Form Leaders
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-slate-300 font-black uppercase tracking-wider text-xs sm:text-sm flex items-center gap-2">
+                        <Zap size={16} className="text-yellow-400" /> {filterYear === '2026' ? '2026 Season Leaders' : 'All-Time Leaders'}
                     </h2>
 
                     {/* TOGGLE */}
-                    <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                    <div className="flex bg-slate-900 rounded-xl p-1 border border-slate-700/80">
                         <button
                             onClick={() => setFilterYear('all')}
-                            className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${filterYear === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterYear === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                         >
                             All Time
                         </button>
                         <button
                             onClick={() => setFilterYear('2026')}
-                            className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${filterYear === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterYear === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                         >
                             2026
                         </button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-5">
                     <RenderMiniLeaderboard 
                         title="Top Scorers" 
                         icon="⚽" 
                         playersList={topScorers} 
                         statField="goals" 
                         statName="goals" 
-                        onSelect={(p) => setSelectedPlayerForEdit(p)} 
+                        onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                     <RenderMiniLeaderboard 
                         title="Top Playmakers" 
@@ -186,7 +186,7 @@ export default function DashboardView({
                         playersList={topAssists} 
                         statField="assists" 
                         statName="assists" 
-                        onSelect={(p) => setSelectedPlayerForEdit(p)} 
+                        onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                     <RenderMiniLeaderboard 
                         title="Clean Sheets" 
@@ -194,23 +194,24 @@ export default function DashboardView({
                         playersList={topCleanSheets} 
                         statField="cleanSheets" 
                         statName="cs" 
-                        onSelect={(p) => setSelectedPlayerForEdit(p)} 
+                        onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                 </div>
             </section>
 
             <section>
-                <div className="flex justify-between items-end mb-4">
-                    <h2 className="text-slate-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                        <TrendingUp size={16} /> Season Standings
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-slate-300 font-black uppercase tracking-wider text-xs sm:text-sm flex items-center gap-2">
+                        <TrendingUp size={16} className="text-green-400" /> {filterYear === '2026' ? '2026 Standings' : 'All-Time Standings'}
                     </h2>
+                    <span className="text-[11px] text-slate-500 font-bold">Tap player for card</span>
                 </div>
-                <div className="bg-slate-800 rounded-xl overflow-hidden shadow-xl border border-slate-700">
+                <div className="bg-slate-800/90 rounded-2xl overflow-hidden shadow-xl border border-slate-700/80">
                     {dashboardData.map((player, idx) => (
                         <div
                             key={player.id}
-                            onClick={() => { if (authStatus.role === 'admin') setSelectedPlayerForEdit(player); }}
-                            className={`${authStatus.role === 'admin' ? 'cursor-pointer' : ''}`}
+                            onClick={() => setSelectedPlayerForEdit(player, filterYear)}
+                            className="cursor-pointer"
                         >
                             <LeaderboardRow
                                 player={player}
@@ -221,6 +222,9 @@ export default function DashboardView({
                             />
                         </div>
                     ))}
+                    {dashboardData.length === 0 && (
+                        <div className="p-8 text-center text-slate-500 text-sm">No active players for this period yet.</div>
+                    )}
                 </div>
             </section>
         </div>

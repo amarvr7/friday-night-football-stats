@@ -1,25 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus, Share2 } from 'lucide-react';
 
+const LIVE_STORAGE_KEY = 'friday_fut_live_match_v1';
+
 const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
+    const savedSession = React.useMemo(() => {
+        try {
+            const raw = localStorage.getItem(LIVE_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }, []);
+
     // Display labels — Game 2 on Big Nights passes { blue: 'Red', white: 'Green' }
-    const teamLabels = initialTeams?.labels || { blue: 'Blue', white: 'White' };
-    const [matchData, setMatchData] = useState({});
+    const teamLabels = React.useMemo(
+        () => initialTeams?.labels || savedSession?.teamLabels || { blue: 'Blue', white: 'White' },
+        [initialTeams, savedSession]
+    );
+    const [matchData, setMatchData] = useState(() => savedSession?.matchData || {});
     const [blueScore, setBlueScore] = useState(0);
     const [whiteScore, setWhiteScore] = useState(0);
-    const [motmVotes, setMotmVotes] = useState({});
+    const [motmVotes, setMotmVotes] = useState(() => savedSession?.motmVotes || {});
 
     // Timer state
-    const [timeElapsed, setTimeElapsed] = useState(0);
+    const [timeElapsed, setTimeElapsed] = useState(() => savedSession?.timeElapsed || 0);
     const [isRunning, setIsRunning] = useState(false);
 
     // View state: 'playing' or 'voting'
-    const [matchPhase, setMatchPhase] = useState('playing');
-    const [pkAttempts, setPkAttempts] = useState({});
+    const [matchPhase, setMatchPhase] = useState(() => savedSession?.matchPhase || 'playing');
+    const [pkAttempts, setPkAttempts] = useState(() => savedSession?.pkAttempts || {});
     const [goalAnimation, setGoalAnimation] = useState(null);
     
     // Fallback if they wanted to bypass the tracker
-    const [pkWinner, setPkWinner] = useState(null);
+    const [pkWinner, setPkWinner] = useState(() => savedSession?.pkWinner || null);
 
     const togglePk = (pid, result) => {
         setPkAttempts(prev => ({
@@ -50,8 +64,6 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
     const handleSelectSubOut = (pid) => {
         setSelectedSubOut(pid);
-        // If the outgoing player has no recorded involvement, assume they never
-        // actually played (e.g. a no-show) and default to removing them entirely.
         setRemoveSubOut(pid ? !playerHasRecordedStats(pid) : false);
     };
 
@@ -86,11 +98,11 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         handleCloseSubModal();
     };
 
-    // Initialize players from initialTeams
+    // Initialize players from initialTeams only if no saved session matches or matchData is empty
     useEffect(() => {
-        if (initialTeams) {
-            const blueIds = initialTeams.blue.map(p => p.id);
-            const whiteIds = initialTeams.white.map(p => p.id);
+        if (initialTeams && Object.keys(matchData).length === 0) {
+            const blueIds = (initialTeams.blue || []).map(p => p.id);
+            const whiteIds = (initialTeams.white || []).map(p => p.id);
 
             const initialData = {};
             const initialVotes = {};
@@ -107,7 +119,33 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             setMatchData(initialData);
             setMotmVotes(initialVotes);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialTeams]);
+
+    // Persist active match state to localStorage so accidental refreshes/tab switches don't lose data
+    useEffect(() => {
+        if (Object.keys(matchData).length > 0) {
+            try {
+                localStorage.setItem(LIVE_STORAGE_KEY, JSON.stringify({
+                    matchData,
+                    motmVotes,
+                    timeElapsed,
+                    matchPhase,
+                    pkAttempts,
+                    pkWinner,
+                    teamLabels
+                }));
+            } catch (e) {
+                // Ignore storage quota errors
+            }
+        }
+    }, [matchData, motmVotes, timeElapsed, matchPhase, pkAttempts, pkWinner, teamLabels]);
+
+    const clearSavedSession = () => {
+        try {
+            localStorage.removeItem(LIVE_STORAGE_KEY);
+        } catch (e) {}
+    };
 
     // Timer Logic
     useEffect(() => {
@@ -167,7 +205,7 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     const handleVote = (playerId) => {
         setMotmVotes(prev => ({
             ...prev,
-            [playerId]: prev[playerId] + 1
+            [playerId]: (prev[playerId] || 0) + 1
         }));
     };
 
@@ -185,10 +223,11 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         });
 
         // Ensure we only assign motm if there was at least 1 vote
-        if (maxVotes === 0) motm = null;
+        if (maxVotes <= 0) motm = null;
 
         let blueWin = blueScore > whiteScore ? 1 : (blueScore === whiteScore ? 0.5 : 0);
         let whiteWin = whiteScore > blueScore ? 1 : (whiteScore === blueScore ? 0.5 : 0);
+        let effectivePkWinner = pkWinner;
 
         if (blueScore === whiteScore) {
             let bluePkGoals = 0;
@@ -202,11 +241,14 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             
             if (bluePkGoals > whitePkGoals) {
                 blueWin = 1; whiteWin = 0;
+                effectivePkWinner = 'blue';
             } else if (whitePkGoals > bluePkGoals) {
                 blueWin = 0; whiteWin = 1;
+                effectivePkWinner = 'white';
             } else if (pkWinner) {
                 blueWin = pkWinner === 'blue' ? 1 : 0;
                 whiteWin = pkWinner === 'white' ? 1 : 0;
+                effectivePkWinner = pkWinner;
             }
         }
 
@@ -215,9 +257,6 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
         const finalData = {};
         Object.keys(matchData).forEach(pid => {
-            // Strip the UI-only subbedOut flag; subbed-off players still played,
-            // so they keep their stats and team result. Players removed as
-            // "never played" are no longer in matchData and get nothing.
             const { subbedOut, ...pData } = matchData[pid];
             const isBlue = pData.team === 'blue';
             finalData[pid] = {
@@ -229,7 +268,8 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             };
         });
 
-        onSave(finalData, { motm, pkWinner });
+        clearSavedSession();
+        onSave(finalData, { motm, pkWinner: effectivePkWinner, pkAttempts, teamLabels });
     };
 
     const handleShare = () => {
@@ -322,17 +362,17 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     };
 
     return (
-        <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 relative overflow-hidden">
+        <div className="bg-slate-800/90 rounded-2xl p-3 sm:p-6 shadow-2xl border border-slate-700/80 relative">
             {/* Goal Animation Overlay */}
             {goalAnimation && (
-                <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="animate-bounce flex flex-col items-center">
-                        <div className="text-8xl mb-4 shadow-black drop-shadow-2xl">⚽️</div>
+                        <div className="text-7xl sm:text-8xl mb-4 shadow-black drop-shadow-2xl">⚽️</div>
                         <h2 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 uppercase tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
                             GOAL!
                         </h2>
                         {goalAnimation && players.find(p => p.id === goalAnimation) && (
-                             <p className="mt-4 text-2xl font-bold text-white drop-shadow-xl bg-black/50 px-6 py-2 rounded-full border border-white/20">
+                             <p className="mt-4 text-xl sm:text-2xl font-bold text-white drop-shadow-xl bg-black/60 px-6 py-2 rounded-full border border-white/20">
                                  {players.find(p => p.id === goalAnimation)?.name}
                              </p>
                         )}
@@ -343,8 +383,8 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             {/* Sub Modal */}
             {subModalTeam && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={handleCloseSubModal}>
-                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold text-white mb-4">Substitution — {teamLabels[subModalTeam]} Team</h3>
+                    <div className="bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-700 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4">Substitution — {teamLabels[subModalTeam]} Team</h3>
 
                         <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Player Coming On</label>
                         <select
@@ -411,14 +451,14 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                         <div className="flex gap-3">
                             <button
                                 onClick={handleCloseSubModal}
-                                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors"
+                                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 disabled={!selectedSubIn && !selectedSubOut}
                                 onClick={handleConfirmSub}
-                                className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 rounded-lg transition-colors"
+                                className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition-colors"
                             >
                                 Confirm
                             </button>
@@ -427,82 +467,94 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <Activity className={isRunning ? "text-green-500 animate-pulse" : "text-yellow-500"} />
-                    {matchPhase === 'playing' ? 'Live Match Tracker' : 'MOTM Voting & Finalize'}
-                </h2>
-
-                {matchPhase === 'playing' && (
-                    <div className="flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-lg border border-slate-700">
-                        <Timer className="text-slate-400" size={20} />
-                        <span className="text-2xl font-mono font-bold text-white">{formatTime(timeElapsed)}</span>
-                        <button
-                            onClick={() => setIsRunning(!isRunning)}
-                            className={`px-3 py-1 rounded-md font-bold text-sm ${isRunning ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-green-500/20 text-green-500 hover:bg-green-500/30'}`}
-                        >
-                            {isRunning ? 'Pause' : 'Start'}
-                        </button>
+            {/* Sticky Live Header & Scoreboard */}
+            <div className="sticky top-14 z-20 bg-slate-900/95 backdrop-blur-md p-3 sm:p-4 rounded-xl border border-slate-700/80 mb-5 shadow-xl">
+                <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                        <Activity size={18} className={isRunning ? "text-green-500 animate-pulse" : "text-yellow-500"} />
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                            {matchPhase === 'playing' ? 'Live Match' : 'MOTM & Finalize'}
+                        </span>
                     </div>
-                )}
-            </div>
 
-            {/* Scoreboard */}
-            <div className="flex justify-between items-center bg-slate-900 p-6 rounded-xl border border-slate-700 mb-8 shadow-inner">
-                <div className="text-center w-1/3">
-                    <h3 className={`font-bold uppercase tracking-wider mb-2 ${teamLabels.blue === 'Red' ? 'text-red-400' : 'text-blue-400'}`}>{teamLabels.blue}</h3>
-                    <div className="text-6xl font-black text-white">{blueScore}</div>
+                    {matchPhase === 'playing' && (
+                        <div className="flex items-center gap-2 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                            <Timer className="text-slate-400" size={15} />
+                            <span className="text-base sm:text-lg font-mono font-bold text-white">{formatTime(timeElapsed)}</span>
+                            <button
+                                onClick={() => setIsRunning(!isRunning)}
+                                className={`px-2.5 py-0.5 rounded font-bold text-xs ${isRunning ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}
+                            >
+                                {isRunning ? 'Pause' : 'Start'}
+                            </button>
+                        </div>
+                    )}
                 </div>
-                <div className="text-slate-600 font-black text-2xl w-1/3 text-center">VS</div>
-                <div className="text-center w-1/3">
-                    <h3 className={`font-bold uppercase tracking-wider mb-2 ${teamLabels.white === 'Green' ? 'text-green-400' : 'text-white'}`}>{teamLabels.white}</h3>
-                    <div className="text-6xl font-black text-white">{whiteScore}</div>
+
+                {/* Compact Scoreboard */}
+                <div className="flex justify-between items-center px-2">
+                    <div className="flex items-center gap-3 w-2/5 justify-start">
+                        <span className={`font-black uppercase text-xs sm:text-sm tracking-wider ${teamLabels.blue === 'Red' ? 'text-red-400' : 'text-blue-400'}`}>
+                            {teamLabels.blue}
+                        </span>
+                        <span className="text-3xl sm:text-5xl font-black text-white font-mono ml-auto">{blueScore}</span>
+                    </div>
+                    <div className="text-slate-600 font-black text-xs sm:text-base w-1/5 text-center">VS</div>
+                    <div className="flex items-center gap-3 w-2/5 justify-end">
+                        <span className="text-3xl sm:text-5xl font-black text-white font-mono mr-auto">{whiteScore}</span>
+                        <span className={`font-black uppercase text-xs sm:text-sm tracking-wider ${teamLabels.white === 'Green' ? 'text-green-400' : 'text-white'}`}>
+                            {teamLabels.white}
+                        </span>
+                    </div>
                 </div>
             </div>
 
             {/* Phase 1: Playing - Live Stat Tracking */}
             {matchPhase === 'playing' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                     {/* Blue Team Column */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
+                        <div className={`text-xs font-black uppercase tracking-wider px-1 ${teamLabels.blue === 'Red' ? 'text-red-400' : 'text-blue-400'}`}>
+                            {teamLabels.blue} Squad ({bluePlayers.length})
+                        </div>
                         {bluePlayers.map(pid => {
                             const player = players.find(p => p.id === pid);
                             const stats = matchData[pid];
                             return (
-                                <div key={pid} className="flex flex-col p-3 rounded-lg border bg-blue-900/10 border-blue-500/20 gap-2.5 shadow-sm">
-                                    <span className="font-bold text-white text-lg truncate w-full">{player?.name}</span>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
-                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                <div key={pid} className="flex flex-col p-3 rounded-xl border bg-blue-950/20 border-blue-500/25 gap-2 shadow-sm">
+                                    <span className="font-bold text-white text-sm sm:text-base truncate w-full">{player?.name}</span>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        <div className="flex items-center justify-between bg-green-500/15 rounded-lg text-xs font-bold border border-green-500/30">
+                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-2 hover:bg-green-500/30 text-green-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-green-400 flex items-center min-w-[3.5rem] justify-center">
-                                                G <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.goals}</span>
+                                            <div className="text-green-400 flex items-center justify-center">
+                                                G <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.goals}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-2 hover:bg-green-500/30 text-green-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
-                                        <div className="flex items-center bg-blue-500/20 rounded-lg text-sm font-bold border border-blue-500/30">
-                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                        <div className="flex items-center justify-between bg-blue-500/15 rounded-lg text-xs font-bold border border-blue-500/30">
+                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-2 hover:bg-blue-500/30 text-blue-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-blue-400 flex items-center min-w-[3.5rem] justify-center">
-                                                A <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.assists}</span>
+                                            <div className="text-blue-400 flex items-center justify-center">
+                                                A <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.assists}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-2 hover:bg-blue-500/30 text-blue-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
-                                        <div className="flex items-center bg-red-500/20 rounded-lg text-sm font-bold border border-red-500/30">
-                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                        <div className="flex items-center justify-between bg-red-500/15 rounded-lg text-xs font-bold border border-red-500/30">
+                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-2 hover:bg-red-500/30 text-red-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-red-400 flex items-center min-w-[3.5rem] justify-center">
-                                                OG <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.ownGoals || 0}</span>
+                                            <div className="text-red-400 flex items-center justify-center">
+                                                OG <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.ownGoals || 0}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-2 hover:bg-red-500/30 text-red-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
                                     </div>
@@ -512,52 +564,55 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                         {blueSubbedOff.map(renderSubbedOffRow)}
                         <button
                             onClick={() => setSubModalTeam('blue')}
-                            className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-blue-500/40 text-blue-400 hover:bg-blue-900/40 transition-colors font-bold text-sm mt-2"
+                            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-blue-500/40 text-blue-400 hover:bg-blue-900/30 transition-colors font-bold text-xs sm:text-sm"
                         >
-                            <UserPlus size={16} /> Sub / Add Player
+                            <UserPlus size={15} /> Sub / Add {teamLabels.blue} Player
                         </button>
                     </div>
 
                     {/* White Team Column */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
+                        <div className={`text-xs font-black uppercase tracking-wider px-1 ${teamLabels.white === 'Green' ? 'text-green-400' : 'text-slate-200'}`}>
+                            {teamLabels.white} Squad ({whitePlayers.length})
+                        </div>
                         {whitePlayers.map(pid => {
                             const player = players.find(p => p.id === pid);
                             const stats = matchData[pid];
                             return (
-                                <div key={pid} className="flex flex-col p-3 rounded-lg border bg-slate-700/30 border-white/20 gap-2.5 shadow-sm">
-                                    <span className="font-bold text-white text-lg truncate w-full">{player?.name}</span>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex items-center bg-green-500/20 rounded-lg text-sm font-bold border border-green-500/30">
-                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                <div key={pid} className="flex flex-col p-3 rounded-xl border bg-slate-700/25 border-white/15 gap-2 shadow-sm">
+                                    <span className="font-bold text-white text-sm sm:text-base truncate w-full">{player?.name}</span>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        <div className="flex items-center justify-between bg-green-500/15 rounded-lg text-xs font-bold border border-green-500/30">
+                                            <button onClick={() => updateStat(pid, 'goals', -1)} className="p-2 hover:bg-green-500/30 text-green-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-green-400 flex items-center min-w-[3.5rem] justify-center">
-                                                G <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.goals}</span>
+                                            <div className="text-green-400 flex items-center justify-center">
+                                                G <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.goals}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-1.5 hover:bg-green-500/40 text-green-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'goals', 1)} className="p-2 hover:bg-green-500/30 text-green-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
-                                        <div className="flex items-center bg-blue-500/20 rounded-lg text-sm font-bold border border-blue-500/30">
-                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                        <div className="flex items-center justify-between bg-blue-500/15 rounded-lg text-xs font-bold border border-blue-500/30">
+                                            <button onClick={() => updateStat(pid, 'assists', -1)} className="p-2 hover:bg-blue-500/30 text-blue-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-blue-400 flex items-center min-w-[3.5rem] justify-center">
-                                                A <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.assists}</span>
+                                            <div className="text-blue-400 flex items-center justify-center">
+                                                A <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.assists}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-1.5 hover:bg-blue-500/40 text-blue-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'assists', 1)} className="p-2 hover:bg-blue-500/30 text-blue-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
-                                        <div className="flex items-center bg-red-500/20 rounded-lg text-sm font-bold border border-red-500/30">
-                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-l-lg transition-colors">
-                                                <Minus size={14} />
+                                        <div className="flex items-center justify-between bg-red-500/15 rounded-lg text-xs font-bold border border-red-500/30">
+                                            <button onClick={() => updateStat(pid, 'ownGoals', -1)} className="p-2 hover:bg-red-500/30 text-red-400 rounded-l-lg transition-colors">
+                                                <Minus size={13} />
                                             </button>
-                                            <div className="px-1 text-red-400 flex items-center min-w-[3.5rem] justify-center">
-                                                OG <span className="text-white bg-black/30 px-1.5 ml-1 rounded">{stats.ownGoals || 0}</span>
+                                            <div className="text-red-400 flex items-center justify-center">
+                                                OG <span className="text-white bg-black/40 px-1.5 py-0.5 ml-1 rounded font-mono">{stats.ownGoals || 0}</span>
                                             </div>
-                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-1.5 hover:bg-red-500/40 text-red-400 rounded-r-lg transition-colors">
-                                                <Plus size={14} />
+                                            <button onClick={() => updateStat(pid, 'ownGoals', 1)} className="p-2 hover:bg-red-500/30 text-red-400 rounded-r-lg transition-colors">
+                                                <Plus size={13} />
                                             </button>
                                         </div>
                                     </div>
@@ -567,9 +622,9 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                         {whiteSubbedOff.map(renderSubbedOffRow)}
                         <button
                             onClick={() => setSubModalTeam('white')}
-                            className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-slate-500/40 text-slate-400 hover:bg-slate-700/50 transition-colors font-bold text-sm mt-2"
+                            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-500/40 text-slate-300 hover:bg-slate-700/40 transition-colors font-bold text-xs sm:text-sm"
                         >
-                            <UserPlus size={16} /> Sub / Add Player
+                            <UserPlus size={15} /> Sub / Add {teamLabels.white} Player
                         </button>
                     </div>
                 </div>
@@ -577,30 +632,30 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
 
             {/* Phase 2: Voting - MOTM */}
             {matchPhase === 'voting' && (
-                <div className="mb-8 bg-slate-900/50 rounded-xl p-6 border border-slate-700">
-                    <p className="text-slate-400 text-center mb-6">Cast votes for the Man of the Match. Each tap counts as one vote.</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="mb-6 bg-slate-900/50 rounded-xl p-4 sm:p-6 border border-slate-700">
+                    <p className="text-slate-400 text-xs sm:text-sm text-center mb-4">Cast votes for Man of the Match. Each tap adds 1 vote.</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {Object.keys(matchData).map(pid => {
                             const player = players.find(p => p.id === pid);
-                            const votes = motmVotes[pid];
+                            const votes = motmVotes[pid] || 0;
                             const isBlue = matchData[pid].team === 'blue';
 
                             return (
                                 <button
                                     key={pid}
                                     onClick={() => handleVote(pid)}
-                                    className={`relative flex flex-col items-center p-4 rounded-xl border-2 transition-transform hover:scale-105 ${votes > 0 ? 'bg-yellow-500/10 border-yellow-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500'} ${isBlue ? 'shadow-[0_0_15px_rgba(59,130,246,0.1)]' : ''}`}
+                                    className={`relative flex flex-col items-center p-3 sm:p-4 rounded-xl border-2 transition-transform active:scale-95 ${votes > 0 ? 'bg-yellow-500/10 border-yellow-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
                                 >
                                     {votes > 0 && (
-                                        <div className="absolute -top-3 -right-3 bg-yellow-500 text-black w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shadow-lg">
+                                        <div className="absolute -top-2.5 -right-2.5 bg-yellow-500 text-black w-7 h-7 rounded-full flex items-center justify-center font-black text-sm shadow-lg">
                                             {votes}
                                         </div>
                                     )}
-                                    <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center ${isBlue ? 'bg-blue-900/50' : 'bg-slate-700'}`}>
-                                        <Star className={votes > 0 ? 'text-yellow-500 fill-yellow-500' : 'text-slate-500'} size={24} />
+                                    <div className={`w-10 h-10 rounded-full mb-2 flex items-center justify-center ${isBlue ? 'bg-blue-900/50' : 'bg-slate-700'}`}>
+                                        <Star className={votes > 0 ? 'text-yellow-500 fill-yellow-500' : 'text-slate-500'} size={20} />
                                     </div>
-                                    <span className="font-bold text-white text-sm text-center line-clamp-1">{player?.name}</span>
-                                    <span className="text-xs text-slate-500 mt-1 uppercase">{isBlue ? teamLabels.blue : teamLabels.white}</span>
+                                    <span className="font-bold text-white text-xs sm:text-sm text-center truncate w-full">{player?.name}</span>
+                                    <span className="text-[10px] text-slate-500 mt-0.5 uppercase">{isBlue ? teamLabels.blue : teamLabels.white}</span>
                                 </button>
                             );
                         })}
@@ -609,102 +664,110 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
             )}
 
             {matchPhase === 'voting' && blueScore === whiteScore && (
-                <div className="mb-8 bg-slate-900/50 rounded-xl p-6 border border-slate-700 shadow-inner">
-                    <p className="text-yellow-400 font-bold mb-6 uppercase tracking-wider text-center text-xl">🚨 Match Tied! Penalty Shootout 🚨</p>
+                <div className="mb-6 bg-slate-900/50 rounded-xl p-4 sm:p-6 border border-slate-700 shadow-inner">
+                    <p className="text-yellow-400 font-bold mb-4 uppercase tracking-wider text-center text-base sm:text-xl">🚨 Match Tied! Penalty Shootout 🚨</p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
                         <div>
-                            <h4 className="text-blue-400 font-bold mb-3 uppercase border-b border-blue-500/30 pb-2">{teamLabels.blue} Team PKs</h4>
+                            <h4 className="text-blue-400 font-bold mb-2.5 uppercase border-b border-blue-500/30 pb-1.5 text-xs sm:text-sm">{teamLabels.blue} Team PKs</h4>
                             <div className="space-y-2">
                                 {bluePlayers.map(pid => {
                                     const p = players.find(x => x.id === pid);
                                     return (
-                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded">
-                                            <span className="text-white font-bold text-sm truncate">{p?.name}</span>
+                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded-lg">
+                                            <span className="text-white font-bold text-xs sm:text-sm truncate">{p?.name}</span>
                                             <div className="flex gap-2">
-                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
-                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
+                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-base transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
+                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-base transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
                                             </div>
                                         </div>
-                                    )
+                                    );
                                 })}
                             </div>
                         </div>
                         <div>
-                            <h4 className="text-white font-bold mb-3 uppercase border-b border-white/30 pb-2">{teamLabels.white} Team PKs</h4>
+                            <h4 className="text-white font-bold mb-2.5 uppercase border-b border-white/30 pb-1.5 text-xs sm:text-sm">{teamLabels.white} Team PKs</h4>
                             <div className="space-y-2">
                                 {whitePlayers.map(pid => {
                                     const p = players.find(x => x.id === pid);
                                     return (
-                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded">
-                                            <span className="text-white font-bold text-sm truncate">{p?.name}</span>
+                                        <div key={pid} className="flex justify-between items-center bg-slate-800 p-2 rounded-lg">
+                                            <span className="text-white font-bold text-xs sm:text-sm truncate">{p?.name}</span>
                                             <div className="flex gap-2">
-                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
-                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
+                                                <button onClick={() => togglePk(pid, 'scored')} className={`w-8 h-8 rounded flex items-center justify-center text-base transition-transform ${pkAttempts[pid] === 'scored' ? 'bg-green-600 border-2 border-green-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>⚽️</button>
+                                                <button onClick={() => togglePk(pid, 'missed')} className={`w-8 h-8 rounded flex items-center justify-center text-base transition-transform ${pkAttempts[pid] === 'missed' ? 'bg-red-600 border-2 border-red-400 scale-110 shadow-lg' : 'bg-slate-700 hover:bg-slate-600 grayscale'}`}>❌</button>
                                             </div>
                                         </div>
-                                    )
+                                    );
                                 })}
                             </div>
                         </div>
                     </div>
                     
                     <div className="text-center pt-4 border-t border-slate-700/50">
-                        <p className="text-slate-400 text-xs uppercase mb-3">Or fast-track and just declare a winner:</p>
-                        <div className="flex gap-4 max-w-sm mx-auto">
+                        <p className="text-slate-400 text-xs uppercase mb-3">Or fast-track and declare a PK winner:</p>
+                        <div className="flex gap-3 max-w-sm mx-auto">
                             <button 
                                 onClick={() => setPkWinner('blue')}
-                                className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'blue' ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-blue-500/50 border-blue-500/20 hover:border-blue-500/50'}`}
+                                className={`flex-1 py-2.5 rounded-xl font-bold border-2 transition-all ${pkWinner === 'blue' ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-800 text-blue-400 border-blue-500/20'}`}
                             >
                                 {teamLabels.blue}
                             </button>
                             <button 
                                 onClick={() => setPkWinner('white')}
-                                className={`flex-1 py-2 rounded-lg font-bold border-2 transition-all ${pkWinner === 'white' ? 'bg-slate-200 text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-500 border-white/20 hover:border-white/50'}`}
+                                className={`flex-1 py-2.5 rounded-xl font-bold border-2 transition-all ${pkWinner === 'white' ? 'bg-slate-200 text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-slate-800 text-slate-300 border-white/20'}`}
                             >
                                 {teamLabels.white}
                             </button>
                         </div>
                     </div>
                 </div>
-            )} 
-
+            )}
 
             {/* Actions */}
-            <div className="flex gap-4">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2.5 sm:gap-4">
                 {matchPhase === 'playing' ? (
                     <button
                         onClick={() => {
                             setIsRunning(false);
                             setMatchPhase('voting');
                         }}
-                        className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black py-3.5 px-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
-                        <CheckCircle size={20} /> End Match & Vote MOTM
+                        <CheckCircle size={18} /> End Match & Vote MOTM
                     </button>
                 ) : (
                     <>
                         <button
                             onClick={handleShare}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 sm:px-6 py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 text-sm"
                             title="Share Score"
                         >
-                            <Share2 size={20} /> <span className="hidden sm:inline">Share</span>
+                            <Share2 size={18} /> <span>Share</span>
                         </button>
                         <button
                             onClick={handleFinalize}
-                            className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                            className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                         >
-                            <CheckCircle size={20} /> Finalize Match
+                            <CheckCircle size={18} /> Save Final Match
                         </button>
                     </>
                 )}
 
                 <button
-                    onClick={matchPhase === 'playing' ? onCancel : () => setMatchPhase('playing')}
-                    className="px-6 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-600 transition-colors"
+                    onClick={() => {
+                        if (matchPhase === 'playing') {
+                            if (window.confirm('Cancel this live match? Unsaved progress will be discarded.')) {
+                                clearSavedSession();
+                                onCancel();
+                            }
+                        } else {
+                            setMatchPhase('playing');
+                        }
+                    }}
+                    className="px-4 sm:px-6 py-3.5 bg-slate-700 text-slate-200 font-bold rounded-xl hover:bg-slate-600 transition-colors text-sm"
                 >
-                    {matchPhase === 'playing' ? 'Cancel' : 'Back to Game'}
+                    {matchPhase === 'playing' ? 'Cancel' : 'Back'}
                 </button>
             </div>
         </div>

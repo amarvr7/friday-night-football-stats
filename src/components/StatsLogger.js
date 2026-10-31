@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { TrendingUp, Save, AlertCircle } from 'lucide-react';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
+import { getPlayerHistoricalBaseline, calculateStatsFromMatches, getPlayerStats } from '../utils/helpers';
 
 // The 2026 leaderboards read from the nested season2026 map (plus match docs),
-// while all-time views read the top-level fields. gamesPlayed is stored as
+// while all-time views read historical + matches + season2026. gamesPlayed is stored as
 // season2026.games, hence the mapping.
 const SEASON_2026_FIELD_MAP = {
     goals: 'goals',
@@ -14,10 +15,11 @@ const SEASON_2026_FIELD_MAP = {
     cleanSheets: 'cleanSheets',
     motms: 'motms',
     goalsFor: 'goalsFor',
-    goalsAgainst: 'goalsAgainst'
+    goalsAgainst: 'goalsAgainst',
+    ownGoals: 'ownGoals'
 };
 
-export default function StatsLogger({ players, onBack }) {
+export default function StatsLogger({ players, matches = [], onBack }) {
     const [selectedPlayer, setSelectedPlayer] = useState('');
     const [targetSeason, setTargetSeason] = useState('2026'); // '2026' or 'alltime'
     const [statsForm, setStatsForm] = useState({
@@ -28,7 +30,8 @@ export default function StatsLogger({ players, onBack }) {
         cleanSheets: '',
         motms: '',
         goalsFor: '',
-        goalsAgainst: ''
+        goalsAgainst: '',
+        ownGoals: ''
     });
 
     const handleInputChange = (field, value) => {
@@ -46,17 +49,41 @@ export default function StatsLogger({ players, onBack }) {
             return;
         }
 
+        const player = players.find(p => p.id === selectedPlayer);
+        if (!player) return;
+
         const updates = {};
         let hasChanges = false;
 
+        // If updating all-time stats, ensure player.historical is initialized from baseline
+        const allMatchStats = calculateStatsFromMatches(player, matches);
+        const currentHistorical = getPlayerHistoricalBaseline(player, allMatchStats);
+
         Object.keys(statsForm).forEach(key => {
-            const value = parseInt(statsForm[key]) || 0;
+            const value = key === 'wins' ? (parseFloat(statsForm[key]) || 0) : (parseInt(statsForm[key], 10) || 0);
             if (value !== 0) {
-                const fieldPath = targetSeason === '2026' ? `season2026.${SEASON_2026_FIELD_MAP[key]}` : key;
-                updates[fieldPath] = increment(value);
+                if (targetSeason === '2026') {
+                    const fieldPath = `season2026.${SEASON_2026_FIELD_MAP[key]}`;
+                    updates[fieldPath] = increment(value);
+                    // Also increment top-level for legacy compatibility
+                    updates[key] = increment(value);
+                } else {
+                    const newHistVal = Math.max(0, (currentHistorical[key] || 0) + value);
+                    updates[`historical.${key}`] = newHistVal;
+                    updates[key] = increment(value);
+                }
                 hasChanges = true;
             }
         });
+
+        // If player didn't have a historical object yet and we're editing alltime, persist all baseline fields
+        if (targetSeason === 'alltime' && hasChanges && !player.historical) {
+            Object.keys(currentHistorical).forEach(k => {
+                if (updates[`historical.${k}`] === undefined) {
+                    updates[`historical.${k}`] = currentHistorical[k] || 0;
+                }
+            });
+        }
 
         if (!hasChanges) {
             alert('Please enter at least one stat value');
@@ -67,17 +94,18 @@ export default function StatsLogger({ players, onBack }) {
             const playerRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.PLAYERS, selectedPlayer);
             await updateDoc(playerRef, updates);
 
-            const player = players.find(p => p.id === selectedPlayer);
             const summary = [];
+            const parseVal = (k) => k === 'wins' ? (parseFloat(statsForm[k]) || 0) : (parseInt(statsForm[k], 10) || 0);
             
-            if (parseInt(statsForm.goals) || 0) summary.push(`${statsForm.goals} goal${Math.abs(parseInt(statsForm.goals)) !== 1 ? 's' : ''}`);
-            if (parseInt(statsForm.assists) || 0) summary.push(`${statsForm.assists} assist${Math.abs(parseInt(statsForm.assists)) !== 1 ? 's' : ''}`);
-            if (parseInt(statsForm.wins) || 0) summary.push(`${statsForm.wins} win${Math.abs(parseInt(statsForm.wins)) !== 1 ? 's' : ''}`);
-            if (parseInt(statsForm.gamesPlayed) || 0) summary.push(`${statsForm.gamesPlayed} game${Math.abs(parseInt(statsForm.gamesPlayed)) !== 1 ? 's' : ''}`);
-            if (parseInt(statsForm.cleanSheets) || 0) summary.push(`${statsForm.cleanSheets} clean sheet${Math.abs(parseInt(statsForm.cleanSheets)) !== 1 ? 's' : ''}`);
-            if (parseInt(statsForm.motms) || 0) summary.push(`${statsForm.motms} MOTM`);
-            if (parseInt(statsForm.goalsFor) || 0) summary.push(`${statsForm.goalsFor} GF`);
-            if (parseInt(statsForm.goalsAgainst) || 0) summary.push(`${statsForm.goalsAgainst} GA`);
+            if (parseVal('goals')) summary.push(`${statsForm.goals} goal${Math.abs(parseVal('goals')) !== 1 ? 's' : ''}`);
+            if (parseVal('assists')) summary.push(`${statsForm.assists} assist${Math.abs(parseVal('assists')) !== 1 ? 's' : ''}`);
+            if (parseVal('wins')) summary.push(`${statsForm.wins} win${Math.abs(parseVal('wins')) !== 1 ? 's' : ''}`);
+            if (parseVal('gamesPlayed')) summary.push(`${statsForm.gamesPlayed} game${Math.abs(parseVal('gamesPlayed')) !== 1 ? 's' : ''}`);
+            if (parseVal('cleanSheets')) summary.push(`${statsForm.cleanSheets} clean sheet${Math.abs(parseVal('cleanSheets')) !== 1 ? 's' : ''}`);
+            if (parseVal('motms')) summary.push(`${statsForm.motms} MOTM`);
+            if (parseVal('goalsFor')) summary.push(`${statsForm.goalsFor} GF`);
+            if (parseVal('goalsAgainst')) summary.push(`${statsForm.goalsAgainst} GA`);
+            if (parseVal('ownGoals')) summary.push(`${statsForm.ownGoals} OG`);
 
             alert(`Successfully updated ${player.name} (${targetSeason === '2026' ? '2026 season' : 'all-time'}):\n${summary.join(', ')}`);
 
@@ -89,7 +117,8 @@ export default function StatsLogger({ players, onBack }) {
                 cleanSheets: '',
                 motms: '',
                 goalsFor: '',
-                goalsAgainst: ''
+                goalsAgainst: '',
+                ownGoals: ''
             });
             setSelectedPlayer('');
         } catch (err) {
@@ -129,14 +158,14 @@ export default function StatsLogger({ players, onBack }) {
                             <button
                                 type="button"
                                 onClick={() => setTargetSeason('2026')}
-                                className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${targetSeason === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 px-3 py-2.5 rounded-md text-xs font-bold transition-all ${targetSeason === '2026' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 2026 Season
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setTargetSeason('alltime')}
-                                className={`flex-1 px-3 py-2 rounded-md text-xs font-bold transition-all ${targetSeason === 'alltime' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 px-3 py-2.5 rounded-md text-xs font-bold transition-all ${targetSeason === 'alltime' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 All-Time (Legacy)
                             </button>
@@ -144,7 +173,7 @@ export default function StatsLogger({ players, onBack }) {
                         <p className="text-xs text-slate-500">
                             {targetSeason === '2026'
                                 ? 'Counts towards the 2026 season leaderboards AND all-time totals.'
-                                : 'Counts towards all-time totals only (pre-2026 / legacy corrections).'}
+                                : 'Counts towards all-time baseline totals only (pre-2026 / legacy corrections).'}
                         </p>
                     </div>
 
@@ -157,7 +186,7 @@ export default function StatsLogger({ players, onBack }) {
                             required
                         >
                             <option value="">Choose a player...</option>
-                            {players.sort((a, b) => a.name.localeCompare(b.name)).map(p => (
+                            {[...players].sort((a, b) => a.name.localeCompare(b.name)).map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                         </select>
@@ -165,59 +194,51 @@ export default function StatsLogger({ players, onBack }) {
 
                     {selectedPlayerData && (() => {
                         const isSeason2026 = targetSeason === '2026';
-                        const source = isSeason2026 ? (selectedPlayerData.season2026 || {}) : selectedPlayerData;
-                        const currentStats = {
-                            goals: source.goals || 0,
-                            assists: source.assists || 0,
-                            wins: source.wins || 0,
-                            gamesPlayed: (isSeason2026 ? source.games : source.gamesPlayed) || 0,
-                            cleanSheets: source.cleanSheets || 0,
-                            motms: source.motms || 0,
-                            goalsFor: source.goalsFor || 0,
-                            goalsAgainst: source.goalsAgainst || 0
-                        };
+                        const computedStats = getPlayerStats(selectedPlayerData, matches, isSeason2026 ? '2026' : 'all');
                         return (
                             <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
-                                <h3 className="text-sm font-bold text-slate-400 uppercase mb-3">
-                                    Current {isSeason2026 ? '2026 Manual' : 'All-Time'} Stats for {selectedPlayerData.name}
+                                <h3 className="text-sm font-bold text-slate-400 uppercase mb-1">
+                                    Current {isSeason2026 ? '2026 Season' : 'All-Time'} Totals for {selectedPlayerData.name}
                                 </h3>
-                                {isSeason2026 && (
-                                    <p className="text-[10px] text-slate-500 mb-3">
-                                        Excludes stats from logged matches — those are added automatically on the leaderboards.
-                                    </p>
-                                )}
-                                <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 text-center text-xs">
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">Goals</span>
-                                        <span className="text-white font-bold text-base">{currentStats.goals}</span>
+                                <p className="text-[11px] text-slate-500 mb-3">
+                                    Includes logged matches + manual adjustments.
+                                </p>
+                                <div className="grid grid-cols-3 sm:grid-cols-9 gap-2.5 text-center text-xs">
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">Goals</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.goals}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">Assists</span>
-                                        <span className="text-white font-bold text-base">{currentStats.assists}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">Assists</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.assists}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">Wins</span>
-                                        <span className="text-white font-bold text-base">{currentStats.wins}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">Wins</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.wins}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">Games</span>
-                                        <span className="text-white font-bold text-base">{currentStats.gamesPlayed}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">Games</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.gamesPlayed}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">CS</span>
-                                        <span className="text-white font-bold text-base">{currentStats.cleanSheets}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">CS</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.cleanSheets}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">MOTM</span>
-                                        <span className="text-white font-bold text-base">{currentStats.motms}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">MOTM</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.motms}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">GF</span>
-                                        <span className="text-white font-bold text-base">{currentStats.goalsFor}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">GF</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.goalsFor}</span>
                                     </div>
-                                    <div>
-                                        <span className="text-slate-500 block mb-1">GA</span>
-                                        <span className="text-white font-bold text-base">{currentStats.goalsAgainst}</span>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">GA</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.goalsAgainst}</span>
+                                    </div>
+                                    <div className="bg-slate-800/60 p-2 rounded">
+                                        <span className="text-slate-500 block mb-0.5">OG</span>
+                                        <span className="text-white font-bold text-sm">{computedStats.ownGoals || 0}</span>
                                     </div>
                                 </div>
                             </div>
@@ -227,13 +248,13 @@ export default function StatsLogger({ players, onBack }) {
                     <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 sm:p-6 mb-6">
                         <h3 className="text-sm font-bold text-blue-400 uppercase mb-4">Enter Stats to Add/Subtract</h3>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-slate-300 text-xs font-bold mb-2">Goals</label>
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.goals}
                                     onChange={(e) => handleInputChange('goals', e.target.value)}
                                 />
@@ -244,18 +265,19 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.assists}
                                     onChange={(e) => handleInputChange('assists', e.target.value)}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-slate-300 text-xs font-bold mb-2">Wins</label>
+                                <label className="block text-slate-300 text-xs font-bold mb-2">Wins (0.5 for draw)</label>
                                 <input
                                     type="number"
+                                    step="0.5"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.wins}
                                     onChange={(e) => handleInputChange('wins', e.target.value)}
                                 />
@@ -266,7 +288,7 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.gamesPlayed}
                                     onChange={(e) => handleInputChange('gamesPlayed', e.target.value)}
                                 />
@@ -277,7 +299,7 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.cleanSheets}
                                     onChange={(e) => handleInputChange('cleanSheets', e.target.value)}
                                 />
@@ -288,7 +310,7 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.motms}
                                     onChange={(e) => handleInputChange('motms', e.target.value)}
                                 />
@@ -299,7 +321,7 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.goalsFor}
                                     onChange={(e) => handleInputChange('goalsFor', e.target.value)}
                                 />
@@ -310,9 +332,20 @@ export default function StatsLogger({ players, onBack }) {
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2 rounded text-base"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
                                     value={statsForm.goalsAgainst}
                                     onChange={(e) => handleInputChange('goalsAgainst', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-slate-300 text-xs font-bold mb-2">Own Goals</label>
+                                <input
+                                    type="number"
+                                    placeholder="0"
+                                    className="w-full bg-slate-900 border border-slate-600 text-white px-3 py-2.5 rounded-lg text-base"
+                                    value={statsForm.ownGoals}
+                                    onChange={(e) => handleInputChange('ownGoals', e.target.value)}
                                 />
                             </div>
                         </div>
@@ -325,7 +358,7 @@ export default function StatsLogger({ players, onBack }) {
                     <button
                         type="submit"
                         disabled={!selectedPlayer}
-                        className="w-full bg-blue-600 disabled:opacity-50 hover:bg-blue-500 text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 text-lg shadow-lg transition-all mb-4"
+                        className="w-full bg-blue-600 disabled:opacity-50 hover:bg-blue-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg shadow-lg transition-all mb-4"
                     >
                         <Save size={20} /> Save Stats Changes
                     </button>
@@ -333,7 +366,7 @@ export default function StatsLogger({ players, onBack }) {
 
                 <button
                     onClick={onBack}
-                    className="w-full text-slate-400 hover:text-white text-sm font-bold"
+                    className="w-full text-slate-400 hover:text-white text-sm font-bold py-2"
                 >
                     ← Back to Dashboard
                 </button>
