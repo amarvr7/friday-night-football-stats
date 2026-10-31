@@ -2,7 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Shirt, Zap, TrendingUp } from 'lucide-react';
 import CheckInSystem from './CheckInSystem';
 import LeaderboardRow from './LeaderboardRow';
+import LastMatchCard from './LastMatchCard';
 import { calculateOverall, getPlayerStats } from '../utils/helpers';
+
+// Thursday/Friday are match-planning days: check-in goes first. Otherwise lead with the result.
+const MATCH_PLANNING_DAYS = [4, 5];
 
 export default function DashboardView({
     players,
@@ -12,9 +16,20 @@ export default function DashboardView({
     checkins,
     matches, // NEW: Matches for local calculation
     authStatus,
-    setSelectedPlayerForEdit
+    setSelectedPlayerForEdit,
+    onViewAllMatches
 }) {
     const [filterYear, setFilterYear] = useState('2026');
+    const isPlanningDay = MATCH_PLANNING_DAYS.includes(new Date().getDay());
+
+    const lastMatchSection = (
+        <LastMatchCard
+            matches={matches}
+            players={players}
+            onSelectPlayer={(p) => setSelectedPlayerForEdit(p, '2026')}
+            onViewAllMatches={onViewAllMatches}
+        />
+    );
 
     // Process Players with unified getPlayerStats
     const dashboardData = useMemo(() => {
@@ -99,6 +114,8 @@ export default function DashboardView({
     };
     return (
         <div className="space-y-12">
+            {!isPlanningDay && lastMatchSection}
+
             <CheckInSystem players={players} currentUserRole={authStatus.role} />
 
             {upcomingTeams && (() => {
@@ -147,6 +164,8 @@ export default function DashboardView({
                     </section>
                 );
             })()}
+
+            {isPlanningDay && lastMatchSection}
 
             <section>
                 <div className="flex justify-between items-center mb-4">

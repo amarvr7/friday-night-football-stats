@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   collection,
   addDoc,
@@ -52,6 +52,7 @@ export default function FridayNightFUT() {
   const [matchSetup, setMatchSetup] = useState(null); // Pre-filled match data from Team Generator
   const [editingMatch, setEditingMatch] = useState(null); // State for editing an existing match
   const [showGamePicker, setShowGamePicker] = useState(false); // Big Night: choose Game 1 or Game 2
+  const [statsNavRequest, setStatsNavRequest] = useState(null); // Deep-link into a Stats Hub tab
 
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
@@ -61,6 +62,24 @@ export default function FridayNightFUT() {
     setSelectedPlayerForEdit(player);
     setSelectedPlayerSeason(season);
     setShowRatingsModal(false);
+  };
+
+  // A fresh object each time so StatsView reacts even if the same tab is requested twice
+  const openStatsTab = (mode, extra = {}) => {
+    setStatsNavRequest({ mode, nonce: Date.now(), ...extra });
+    setView('stats');
+  };
+
+  // Once the user leaves Stats, a plain nav tap back should land on the default tab again
+  useEffect(() => {
+    if (view !== 'stats') setStatsNavRequest(null);
+  }, [view]);
+
+  const handleViewAllMatches = () => openStatsTab('matches');
+
+  const handleComparePlayer = (player, season = 'all') => {
+    setSelectedPlayerForEdit(null);
+    openStatsTab('compare', { compareA: player.id, season });
   };
 
   // Always use the freshest player object from Firestore listener when modal is open
@@ -355,6 +374,7 @@ export default function FridayNightFUT() {
           matches={matches}
           authStatus={authStatus}
           setSelectedPlayerForEdit={handleSelectPlayer}
+          onViewAllMatches={handleViewAllMatches}
         />
       )}
 
@@ -405,6 +425,7 @@ export default function FridayNightFUT() {
           onEditMatch={(m) => { setEditingMatch(m); setView('log-match'); }}
           onDeleteMatch={handleDeleteMatch}
           currentUserRole={authStatus.role}
+          navRequest={statsNavRequest}
         />
       )}
 
@@ -457,7 +478,9 @@ export default function FridayNightFUT() {
                   <ModernPlayerProfile
                     player={activePlayerForModal}
                     matches={matches}
+                    players={players}
                     initialSeason={selectedPlayerSeason}
+                    onCompare={handleComparePlayer}
                     rank={sortedPlayers.findIndex(p => p.id === activePlayerForModal.id) + 1}
                     onUploadClick={() => authStatus.role === 'admin' && document.getElementById('photo-upload').click()}
                     canEdit={authStatus.role === 'admin'}

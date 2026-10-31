@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { Camera, Sliders, Flame, Target, Trophy, Award, Sparkles, Plus, Minus, Edit3 } from 'lucide-react';
+import { Camera, Sliders, Flame, Target, Trophy, Award, Sparkles, Plus, Minus, Edit3, GitCompareArrows } from 'lucide-react';
 import { calculateOverall, mapRating, getPlayerStats } from '../utils/helpers';
+import PlayerMatchLog from './PlayerMatchLog';
 
 const ModernPlayerProfile = ({ 
     player, 
     rank, 
     matches = [],
+    players = [],
     initialSeason = 'all',
     onUploadClick, 
     onEditRatings, 
+    onCompare,
     canEdit,
     onStatChange, 
     seasonStats, 
@@ -309,6 +312,21 @@ const ModernPlayerProfile = ({
                     <span className="font-mono font-black text-pink-400">{statsToUse.hatTricks || 0}</span>
                 </div>
             </div>
+
+            {/* Match Log */}
+            <PlayerMatchLog player={player} matches={matches} players={players} season={activeSeason} />
+
+            {/* Compare */}
+            {onCompare && (
+                <button
+                    type="button"
+                    onClick={() => onCompare(player, activeSeason)}
+                    aria-label={`Compare ${player.name} with another player`}
+                    className="w-full mt-3 relative z-10 bg-slate-950/60 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm transition-colors"
+                >
+                    <GitCompareArrows size={15} className="text-cyan-400" /> Compare with another player
+                </button>
+            )}
         </div>
     );
 };
