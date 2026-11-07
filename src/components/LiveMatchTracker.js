@@ -3,6 +3,16 @@ import { Activity, Star, Timer, CheckCircle, Plus, Minus, UserPlus, Share2 } fro
 
 const LIVE_STORAGE_KEY = 'friday_fut_live_match_v1';
 
+// Stable fingerprint for a set of teams (sorted player IDs + display labels).
+// Lets us tell a genuinely new live game apart from a resumed/recovered one.
+const getTeamSignature = (teams) => {
+    if (!teams) return null;
+    const blue = (teams.blue || []).map(p => p.id).sort().join(',');
+    const white = (teams.white || []).map(p => p.id).sort().join(',');
+    const labels = teams.labels ? `${teams.labels.blue}/${teams.labels.white}` : '';
+    return `${labels}|${blue}|${white}`;
+};
+
 const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
     const savedSession = React.useMemo(() => {
         try {
@@ -13,11 +23,24 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         }
     }, []);
 
-    // Display labels — Game 2 on Big Nights passes { blue: 'Red', white: 'Green' }
-    const teamLabels = React.useMemo(
-        () => initialTeams?.labels || savedSession?.teamLabels || { blue: 'Blue', white: 'White' },
-        [initialTeams, savedSession]
+    const initialTeamsSignature = React.useMemo(() => getTeamSignature(initialTeams), [initialTeams]);
+
+    // Resume the saved session only when no new teams were passed (e.g. recovering
+    // after a refresh), or when the passed teams match the saved session exactly.
+    const shouldResume = React.useMemo(
+        () => !initialTeams || savedSession?.teamSignature === initialTeamsSignature,
+        [initialTeams, savedSession, initialTeamsSignature]
     );
+
+    // Display labels — Game 2 on Big Nights passes { blue: 'Red', white: 'Green' }.
+    // For a brand-new game, ignore any stale labels left in the saved session.
+    const teamLabels = React.useMemo(() => {
+        const defaults = { blue: 'Blue', white: 'White' };
+        if (initialTeams && !shouldResume) return initialTeams.labels || defaults;
+        return initialTeams?.labels || savedSession?.teamLabels || defaults;
+    }, [initialTeams, savedSession, shouldResume]);
+
+    const [teamSignature, setTeamSignature] = useState(() => savedSession?.teamSignature || null);
     const [matchData, setMatchData] = useState(() => savedSession?.matchData || {});
     const [blueScore, setBlueScore] = useState(0);
     const [whiteScore, setWhiteScore] = useState(0);
@@ -98,27 +121,37 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
         handleCloseSubModal();
     };
 
-    // Initialize players from initialTeams only if no saved session matches or matchData is empty
+    // Initialize players from initialTeams. Resume the saved session only when it
+    // belongs to these exact teams; otherwise start a brand-new game from the
+    // passed teams (fixes updated teams not showing when a stale session lingers).
     useEffect(() => {
-        if (initialTeams && Object.keys(matchData).length === 0) {
-            const blueIds = (initialTeams.blue || []).map(p => p.id);
-            const whiteIds = (initialTeams.white || []).map(p => p.id);
+        if (!initialTeams) return;
+        if (shouldResume && Object.keys(matchData).length > 0) return;
 
-            const initialData = {};
-            const initialVotes = {};
+        const blueIds = (initialTeams.blue || []).map(p => p.id);
+        const whiteIds = (initialTeams.white || []).map(p => p.id);
 
-            blueIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'blue' };
-                initialVotes[id] = 0;
-            });
-            whiteIds.forEach(id => {
-                initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'white' };
-                initialVotes[id] = 0;
-            });
+        const initialData = {};
+        const initialVotes = {};
 
-            setMatchData(initialData);
-            setMotmVotes(initialVotes);
-        }
+        blueIds.forEach(id => {
+            initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'blue' };
+            initialVotes[id] = 0;
+        });
+        whiteIds.forEach(id => {
+            initialData[id] = { goals: 0, assists: 0, ownGoals: 0, team: 'white' };
+            initialVotes[id] = 0;
+        });
+
+        setMatchData(initialData);
+        setMotmVotes(initialVotes);
+        // Reset the rest of the match state so the new game starts clean
+        setTimeElapsed(0);
+        setIsRunning(false);
+        setMatchPhase('playing');
+        setPkAttempts({});
+        setPkWinner(null);
+        setTeamSignature(initialTeamsSignature);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialTeams]);
 
@@ -133,13 +166,14 @@ const LiveMatchTracker = ({ players, onSave, onCancel, initialTeams }) => {
                     matchPhase,
                     pkAttempts,
                     pkWinner,
-                    teamLabels
+                    teamLabels,
+                    teamSignature
                 }));
             } catch (e) {
                 // Ignore storage quota errors
             }
         }
-    }, [matchData, motmVotes, timeElapsed, matchPhase, pkAttempts, pkWinner, teamLabels]);
+    }, [matchData, motmVotes, timeElapsed, matchPhase, pkAttempts, pkWinner, teamLabels, teamSignature]);
 
     const clearSavedSession = () => {
         try {
