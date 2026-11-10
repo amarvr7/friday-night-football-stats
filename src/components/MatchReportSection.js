@@ -225,11 +225,11 @@ const MatchReportSection = ({
             {/* Code-Calculated Top Match Contribution Ratings (0-10) */}
             {topRated.length > 0 && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/80">
-                    <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 whitespace-nowrap">
                             Match Contribution Ratings (0–10)
                         </span>
-                        <span className="text-[9px] font-bold uppercase text-slate-500">
+                        <span className="hidden sm:inline text-[9px] font-bold uppercase text-slate-500 whitespace-nowrap flex-shrink-0">
                             Calculated in Code
                         </span>
                     </div>
