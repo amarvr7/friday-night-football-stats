@@ -6,6 +6,7 @@ import LeaderboardGrid from './LeaderboardGrid';
 import CompareView from './CompareView';
 import MatchEventsList from './MatchEventsList';
 import MatchLineups from './MatchLineups';
+import MatchReportSection from './MatchReportSection';
 
 const VIEW_MODES = [
     { id: 'leaderboards', label: 'Leaders' },
@@ -15,7 +16,21 @@ const VIEW_MODES = [
 ];
 
 // navRequest: { mode, season, compareA, nonce } — lets other screens deep-link into a tab
-const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch, onEditMatch, onDeleteMatch, currentUserRole, navRequest = null }) => {
+const StatsView = ({
+    players,
+    matches,
+    playerStreaks,
+    ratingWeights = {},
+    onSelectPlayer,
+    onAddMatch,
+    onEditMatch,
+    onDeleteMatch,
+    currentUserRole,
+    navRequest = null,
+    onRegenerateReport = null,
+    generatingMatchId = null,
+    reportErrors = {}
+}) => {
     const [sortField, setSortField] = useState('overall');
     const [sortDesc, setSortDesc] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -35,7 +50,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
 
     const processedPlayers = useMemo(() => {
         return players.map(p => {
-            const dynamicStats = getPlayerStats(p, matches, filterYear);
+            const dynamicStats = getPlayerStats(p, matches, filterYear, ratingWeights);
 
             return {
                 ...p,
@@ -43,7 +58,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                 overall: calculateOverall(p, dynamicStats, playerStreaks && playerStreaks[p.id], filterYear === '2026')
             };
         }).filter(p => filterYear === 'all' || p.gamesPlayed > 0);
-    }, [players, matches, filterYear, playerStreaks]);
+    }, [players, matches, filterYear, playerStreaks, ratingWeights]);
 
     const sortedData = useMemo(() => {
         let data = [...processedPlayers];
@@ -208,6 +223,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                     <LeaderboardGrid 
                         players={players} 
                         matches={matches} 
+                        ratingWeights={ratingWeights}
                         filterYear={filterYear} 
                         onSelectPlayer={(p) => onSelectPlayer(p, filterYear)} 
                         onNavigateToFullList={handleNavigateToFullList} 
@@ -219,18 +235,20 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                             <span>Swipe table →</span>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-xs sm:text-sm text-slate-300 min-w-[760px]">
+                            <table className="w-full text-xs sm:text-sm text-slate-300 min-w-[820px]">
                                 <thead className="bg-slate-900 text-slate-400 uppercase font-bold text-[10px] sm:text-xs border-b border-slate-700">
                                     <tr>
                                         <SortHeader field="name" label="Player" stickyLeft />
                                         <SortHeader field="overall" label="OVR" />
+                                        <SortHeader field="avgMatchRating" label="MCR" />
                                         <SortHeader field="gamesPlayed" label="GP" />
                                         <SortHeader field="wins" label="Wins" />
                                         <SortHeader field="winRate" label="Win %" />
                                         <SortHeader field="goals" label="G" />
                                         <SortHeader field="assists" label="A" />
                                         <SortHeader field="goalContrib" label="G+A" />
-                                        <SortHeader field="goalsPerGame" label="GPG" />
+                                        <SortHeader field="goalsPerGame" label="G/App" />
+                                        <SortHeader field="assistsPerGame" label="A/App" />
                                         <SortHeader field="cleanSheets" label="CS" />
                                         <SortHeader field="hatTricks" label="HT" />
                                         <SortHeader field="motms" label="MOTM" />
@@ -260,6 +278,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                                 </div>
                                             </td>
                                             <td className="p-2.5 sm:p-3 font-black text-cyan-400">{p.overall}</td>
+                                            <td className="p-2.5 sm:p-3 font-mono font-bold text-purple-400">{p.avgMatchRating > 0 ? p.avgMatchRating.toFixed(1) : '-'}</td>
                                             <td className="p-2.5 sm:p-3 font-mono">{p.gamesPlayed}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-green-400">{p.wins % 1 === 0 ? p.wins : p.wins.toFixed(1)}</td>
                                             <td className="p-2.5 sm:p-3 font-mono">{p.winRate.toFixed(0)}%</td>
@@ -267,6 +286,7 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
                                             <td className="p-2.5 sm:p-3 font-mono text-slate-200">{p.assists}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-blue-400 font-bold">{p.goalContrib}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-slate-300">{p.goalsPerGame.toFixed(2)}</td>
+                                            <td className="p-2.5 sm:p-3 font-mono text-slate-300">{(p.assistsPerGame || 0).toFixed(2)}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-teal-400">{p.cleanSheets}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-pink-400">{p.hatTricks || 0}</td>
                                             <td className="p-2.5 sm:p-3 font-mono text-yellow-400 font-bold">{p.motms || 0}</td>
@@ -379,6 +399,19 @@ const StatsView = ({ players, matches, playerStreaks, onSelectPlayer, onAddMatch
 
                                     {/* Match Events (Two-Column Split even on Mobile for Duo Readability) */}
                                     <MatchEventsList blueEvents={blueEvents} whiteEvents={whiteEvents} className="border-t border-slate-800/80 pt-3 mt-3" />
+
+                                    {/* AI Match Insights Section (Analyst Mode & Pundit Mode + 0-10 MCR) */}
+                                    <MatchReportSection
+                                        match={m}
+                                        players={players}
+                                        allMatches={matches}
+                                        ratingWeights={ratingWeights}
+                                        isGenerating={generatingMatchId === m.id}
+                                        error={reportErrors?.[m.id] || null}
+                                        canRegenerate={currentUserRole === 'admin'}
+                                        onRegenerate={onRegenerateReport}
+                                        className="mt-3"
+                                    />
 
                                     {/* Expanded Lineups */}
                                     {expandedMatches[m.id] && (

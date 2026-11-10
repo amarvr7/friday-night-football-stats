@@ -7,6 +7,7 @@ export default function SquadView({
     players,
     checkins,
     matches,
+    ratingWeights,
     authStatus,
     user,
     availableLegends,
@@ -53,6 +54,7 @@ export default function SquadView({
                     availableLegends={availableLegends}
                     setShowImporter={setShowImporter}
                     handleSeedData={handleSeedData}
+                    ratingWeights={ratingWeights}
                 />
             )}
 

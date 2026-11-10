@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Shirt, Shuffle, Send, Activity, Trash2, Share2, Users } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Shirt, Shuffle, Send, Activity, Trash2, Share2, Users, Sparkles, Clock, Copy, X, RefreshCw, Link2 } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, setDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, getPlayerStats } from '../utils/helpers';
+import { calculateTeamChemistry, getChemistryLabel } from '../utils/teamChemistry';
+import {
+    buildTeamPreviewPayload,
+    buildDeterministicTeamPreview,
+    generateTeamPreviewFromServer,
+    DEFAULT_KICKOFF_TIME
+} from '../services/teamPreviewService';
+
+// FIFA-style chemistry colour ramp (red -> amber -> green).
+const getChemistryColor = (score) => {
+    if (score >= 70) return { bar: 'bg-green-500', text: 'text-green-400' };
+    if (score >= 60) return { bar: 'bg-lime-500', text: 'text-lime-400' };
+    if (score >= 50) return { bar: 'bg-amber-500', text: 'text-amber-400' };
+    return { bar: 'bg-red-500', text: 'text-red-400' };
+};
 
 const BIG_NIGHT_THRESHOLD = 24;
 
@@ -20,6 +35,14 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
     const [confirmedPlayers, setConfirmedPlayers] = useState([]);
     const [teams, setTeams] = useState(EMPTY_TEAMS);
     const [checkinCount, setCheckinCount] = useState(0);
+
+    // Hype write-up state
+    const [kickoffTime, setKickoffTime] = useState(DEFAULT_KICKOFF_TIME);
+    const [previewText, setPreviewText] = useState('');
+    const [previewSource, setPreviewSource] = useState(null);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+    const [previewError, setPreviewError] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     // BIG NIGHT: 24+ players checked in unlocks 4 teams / 2 games
     const isQuadMode = checkinCount >= BIG_NIGHT_THRESHOLD;
@@ -69,6 +92,15 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
     const teamAvg = (list) => list.length > 0
         ? Math.round(list.reduce((acc, p) => acc + getDynamicRating(p), 0) / list.length)
         : 0;
+
+    // FIFA-style chemistry per team, recomputed when rosters or history change.
+    const chemistryByTeam = useMemo(() => {
+        const result = {};
+        TEAM_DEFS.forEach(def => {
+            result[def.key] = calculateTeamChemistry(teams[def.key], matches);
+        });
+        return result;
+    }, [teams, matches]);
 
     const hasTeams = activeTeamDefs.some(t => teams[t.key].length > 0);
 
@@ -158,7 +190,7 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
         if (!hasTeams) return;
 
         const emojis = { blue: '🔵', white: '⚪️', red: '🔴', green: '🟢' };
-        const teamText = (def) => `${emojis[def.key]} ${def.label.toUpperCase()} TEAM (Avg: ${teamAvg(teams[def.key])})\n` +
+        const teamText = (def) => `${emojis[def.key]} ${def.label.toUpperCase()} TEAM (Avg: ${teamAvg(teams[def.key])} · Chem: ${chemistryByTeam[def.key]?.score ?? 0})\n` +
             teams[def.key].map(p => `- ${p.name} (${getDynamicRating(p)})`).join('\n');
 
         let shareText;
@@ -193,9 +225,71 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
         }
     };
 
+    const handleGenerateHype = async () => {
+        const blueTeam = teams.blue;
+        const whiteTeam = teams.white;
+        if (blueTeam.length === 0 || whiteTeam.length === 0) {
+            alert('Need both Blue and White teams to generate a hype message.');
+            return;
+        }
+
+        setIsGeneratingPreview(true);
+        setPreviewError(null);
+        setShowPreview(true);
+
+        const payload = buildTeamPreviewPayload({
+            blueTeam,
+            whiteTeam,
+            matches,
+            getDynamicRating,
+            kickoffTime
+        });
+
+        try {
+            const result = await generateTeamPreviewFromServer(payload);
+            setPreviewText(result.message);
+            setPreviewSource(result.source);
+        } catch (err) {
+            console.error('Hype generation failed, using local fallback', err);
+            setPreviewError(err.message || 'AI service unavailable.');
+            setPreviewText(buildDeterministicTeamPreview(payload));
+            setPreviewSource('verified-local');
+        } finally {
+            setIsGeneratingPreview(false);
+        }
+    };
+
+    const handleCopyPreview = async () => {
+        if (!previewText) return;
+        try {
+            await navigator.clipboard.writeText(previewText);
+            alert('Hype message copied to clipboard!');
+        } catch (err) {
+            console.error('Clipboard failed', err);
+        }
+    };
+
+    const handleSharePreview = async () => {
+        if (!previewText) return;
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: 'Friday Night Football', text: previewText });
+            } else {
+                await navigator.clipboard.writeText(previewText);
+                alert('Hype message copied to clipboard!');
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Error sharing hype message:', err);
+            }
+        }
+    };
+
     const TeamColumn = ({ def }) => {
         const teamList = teams[def.key];
         const otherDefs = activeTeamDefs.filter(t => t.key !== def.key);
+        const chemistry = chemistryByTeam[def.key] || { score: 0, label: 'Cold' };
+        const chemColor = getChemistryColor(chemistry.score);
 
         return (
             <div className={`flex-1 min-w-0 rounded-xl border ${def.border} bg-slate-900/60 p-3.5 sm:p-4`}>
@@ -226,10 +320,34 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                         </div>
                     ))}
                 </div>
-                <div className="mt-3 pt-2 border-t border-slate-700 text-center">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold">Avg Rating</span>
-                    <div className="text-lg sm:text-xl font-mono font-bold text-white">{teamAvg(teamList)}</div>
+                <div className="mt-3 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2">
+                    <div className="text-center">
+                        <span className="text-slate-500 text-[10px] uppercase font-bold">Avg Rating</span>
+                        <div className="text-lg sm:text-xl font-mono font-bold text-white">{teamAvg(teamList)}</div>
+                    </div>
+                    <div className="text-center">
+                        <span className="text-slate-500 text-[10px] uppercase font-bold flex items-center justify-center gap-1">
+                            <Link2 size={10} /> Chemistry
+                        </span>
+                        <div className={`text-lg sm:text-xl font-mono font-bold ${chemColor.text}`}>
+                            {teamList.length > 0 ? chemistry.score : 0}
+                            <span className="text-[10px] text-slate-500 font-sans"> / 100</span>
+                        </div>
+                    </div>
                 </div>
+                {teamList.length > 1 && (
+                    <div className="mt-2">
+                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${chemColor.bar}`}
+                                style={{ width: `${chemistry.score}%` }}
+                            />
+                        </div>
+                        <div className={`text-center text-[10px] font-bold uppercase tracking-wider mt-1 ${chemColor.text}`}>
+                            {getChemistryLabel(chemistry.score)}
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -256,8 +374,22 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
 
                     {hasTeams && (
                         <>
+                            <label className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-300">
+                                <Clock size={14} className="text-slate-400 flex-shrink-0" />
+                                <span className="font-bold whitespace-nowrap hidden sm:inline">Kickoff</span>
+                                <input
+                                    type="text"
+                                    value={kickoffTime}
+                                    onChange={(e) => setKickoffTime(e.target.value)}
+                                    aria-label="Kickoff time for the hype message"
+                                    className="bg-transparent w-16 text-white font-bold outline-none focus:text-purple-300"
+                                />
+                            </label>
                             <button onClick={handleShare} className="bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg">
                                 <Share2 size={15} /> Share
+                            </button>
+                            <button onClick={handleGenerateHype} disabled={isGeneratingPreview} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg disabled:opacity-60">
+                                <Sparkles size={15} className={isGeneratingPreview ? 'animate-spin' : ''} /> Generate Hype
                             </button>
                             {isQuadMode ? (
                                 <>
@@ -313,6 +445,72 @@ const TeamGenerator = ({ players, matches, playerStreaks, onLogMatch, upcomingTe
                     <span className="font-bold text-slate-300 block mb-1">Why are these teams fair?</span>
                     The AI Generate algorithm uses a snake draft pattern based on each player's dynamic rating. The rating is calculated from a blend of overall historical stats, recent performances, and current streaks, ensuring perfectly balanced teams.
                     {isQuadMode && <span className="block mt-2 text-purple-300">Big Night mode: 24+ players split into 4 equal squads. Game 1 (Blue vs White) kicks off first, followed by Game 2 (Red vs Green). Both matches count towards season stats.</span>}
+                </div>
+            )}
+
+            {showPreview && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Matchday hype message"
+                    onClick={() => setShowPreview(false)}
+                >
+                    <div
+                        className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+                            <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                <Sparkles size={16} className="text-purple-400" /> Matchday Hype
+                                {previewSource === 'verified-local' && (
+                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                        Offline Draft
+                                    </span>
+                                )}
+                            </h3>
+                            <button onClick={() => setShowPreview(false)} aria-label="Close hype message" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {isGeneratingPreview ? (
+                                <div className="flex items-center gap-2 text-sm text-purple-300 py-10 justify-center">
+                                    <RefreshCw size={16} className="animate-spin" />
+                                    <span>Writing the hype via Claude Haiku 5.5…</span>
+                                </div>
+                            ) : (
+                                <>
+                                    {previewError && (
+                                        <div className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-500/30 rounded-lg px-3 py-2 mb-3">
+                                            AI service unavailable — showing a verified local draft you can still edit and share.
+                                        </div>
+                                    )}
+                                    <textarea
+                                        value={previewText}
+                                        onChange={(e) => setPreviewText(e.target.value)}
+                                        aria-label="Editable hype message"
+                                        className="w-full h-72 bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 font-mono leading-relaxed resize-none outline-none focus:border-purple-500"
+                                    />
+                                </>
+                            )}
+                        </div>
+
+                        {!isGeneratingPreview && (
+                            <div className="flex flex-wrap gap-2 p-4 border-t border-slate-700">
+                                <button onClick={handleGenerateHype} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5">
+                                    <RefreshCw size={14} /> Regenerate
+                                </button>
+                                <button onClick={handleCopyPreview} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5">
+                                    <Copy size={14} /> Copy
+                                </button>
+                                <button onClick={handleSharePreview} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ml-auto shadow-lg">
+                                    <Share2 size={14} /> Share
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

@@ -8,12 +8,14 @@ import {
 } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import { calculateOverall, calculateStreaks, getPlayerStats } from '../utils/helpers';
+import { DEFAULT_RATING_WEIGHTS, deduplicateMatches } from '../utils/statsEngine';
 
 export default function useAppModel(user, loggedIn) {
     const [players, setPlayers] = useState([]);
     const [matches, setMatches] = useState([]);
     const [checkins, setCheckins] = useState([]);
     const [upcomingTeams, setUpcomingTeams] = useState(null);
+    const [ratingWeights, setRatingWeights] = useState(DEFAULT_RATING_WEIGHTS);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -30,12 +32,11 @@ export default function useAppModel(user, loggedIn) {
             setLoading(false);
         });
 
-        // 2. Matches Listener
+        // 2. Matches Listener (deduplicated against rapid duplicate submissions)
         const qMatches = query(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES));
         const unsubMatches = onSnapshot(qMatches, (snapshot) => {
             const mList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            mList.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
-            setMatches(mList);
+            setMatches(deduplicateMatches(mList));
         }, (error) => console.error("Firebase error on matches:", error));
 
         // 3. Checkins Listener
@@ -50,22 +51,32 @@ export default function useAppModel(user, loggedIn) {
             else setUpcomingTeams(null);
         }, (error) => console.error("Firebase error on upcoming teams:", error));
 
+        // 5. Configurable Match Contribution Rating Weights Listener
+        const unsubRatingConfig = onSnapshot(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'ratingConfig'), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().weights) {
+                setRatingWeights({ ...DEFAULT_RATING_WEIGHTS, ...docSnap.data().weights });
+            } else {
+                setRatingWeights(DEFAULT_RATING_WEIGHTS);
+            }
+        }, (error) => console.error("Firebase error on ratingConfig:", error));
+
         return () => {
             unsubPlayers();
             unsubMatches();
             unsubCheckins();
             unsubUpcoming();
+            unsubRatingConfig();
         };
     }, [user, loggedIn]);
 
     // Derived Data
     const sortedPlayers = useMemo(() => {
         return [...players].sort((a, b) => {
-            const bStats = getPlayerStats(b, matches, 'all');
-            const aStats = getPlayerStats(a, matches, 'all');
+            const bStats = getPlayerStats(b, matches, 'all', ratingWeights);
+            const aStats = getPlayerStats(a, matches, 'all', ratingWeights);
             return calculateOverall(b, bStats) - calculateOverall(a, aStats);
         });
-    }, [players, matches]);
+    }, [players, matches, ratingWeights]);
 
     const playerStreaks = useMemo(() => {
         const streaks = {};
@@ -80,6 +91,7 @@ export default function useAppModel(user, loggedIn) {
         matches,
         checkins,
         upcomingTeams,
+        ratingWeights,
         loading,
         sortedPlayers,
         playerStreaks

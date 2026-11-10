@@ -1,12 +1,42 @@
-import React, { useState } from 'react';
-import { UserPlus, Zap, FileUp, Trash2, AlertTriangle } from 'lucide-react';
-import { addDoc, collection, serverTimestamp, doc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { UserPlus, Zap, FileUp, Trash2, AlertTriangle, Sliders, RotateCcw, Check } from 'lucide-react';
+import { addDoc, collection, serverTimestamp, doc, updateDoc, getDocs, writeBatch, setDoc } from 'firebase/firestore';
 import { db, PROJECT_ID, COLLECTIONS } from '../services/firebase';
 import SEED_DATA from '../utils/seedData';
+import { DEFAULT_RATING_WEIGHTS } from '../utils/statsEngine';
 
-export default function AdminTools({ user, players, availableLegends, setShowImporter, handleSeedData }) {
+export default function AdminTools({ user, players, availableLegends, setShowImporter, handleSeedData, ratingWeights = DEFAULT_RATING_WEIGHTS }) {
     const [newPlayerName, setNewPlayerName] = useState('');
     const [quickAddPlayer, setQuickAddPlayer] = useState('');
+    const [showRatingConfig, setShowRatingConfig] = useState(false);
+    const [weightsForm, setWeightsForm] = useState({ ...DEFAULT_RATING_WEIGHTS, ...ratingWeights });
+    const [savingWeights, setSavingWeights] = useState(false);
+
+    useEffect(() => {
+        setWeightsForm({ ...DEFAULT_RATING_WEIGHTS, ...ratingWeights });
+    }, [ratingWeights]);
+
+    const handleSaveRatingConfig = async (e) => {
+        e.preventDefault();
+        setSavingWeights(true);
+        try {
+            await setDoc(doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.SETTINGS, 'ratingConfig'), {
+                weights: weightsForm,
+                updatedAt: serverTimestamp()
+            });
+            alert('Match Contribution Rating weights saved!');
+            setShowRatingConfig(false);
+        } catch (err) {
+            console.error('Failed to save rating config', err);
+            alert('Failed to save rating weights: ' + err.message);
+        } finally {
+            setSavingWeights(false);
+        }
+    };
+
+    const handleResetRatingConfig = () => {
+        setWeightsForm({ ...DEFAULT_RATING_WEIGHTS });
+    };
     
     const handleAddPlayer = async (e) => {
         e.preventDefault();
@@ -107,13 +137,80 @@ export default function AdminTools({ user, players, availableLegends, setShowImp
 
     return (
         <div className="mb-8 p-4 bg-slate-900 rounded-lg border border-slate-700">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-slate-400 uppercase">Admin Controls</h3>
-                <div className="flex gap-2">
-                    <button onClick={handleSeedData} className="bg-yellow-600/20 text-yellow-400 px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2"><Zap size={16} /> Load History</button>
-                    <button onClick={() => setShowImporter(true)} className="bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-sm font-bold flex gap-2"><FileUp size={16} /> Import CSV</button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowRatingConfig(!showRatingConfig)}
+                        className="bg-purple-600/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5"
+                    >
+                        <Sliders size={15} /> {showRatingConfig ? 'Hide MCR Config' : '0–10 Rating Config'}
+                    </button>
+                    <button onClick={handleSeedData} className="bg-yellow-600/20 text-yellow-400 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5"><Zap size={15} /> Load History</button>
+                    <button onClick={() => setShowImporter(true)} className="bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5"><FileUp size={15} /> Import CSV</button>
                 </div>
             </div>
+
+            {showRatingConfig && (
+                <form onSubmit={handleSaveRatingConfig} className="mb-6 p-4 bg-slate-950/80 border border-purple-500/30 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <div>
+                            <h4 className="text-xs sm:text-sm font-black uppercase text-purple-300 tracking-wider">
+                                0–10 Match Contribution Rating Formula
+                            </h4>
+                            <p className="text-[11px] text-slate-400">
+                                Calculated strictly in code. Adjust weights below to customize player match ratings.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleResetRatingConfig}
+                            className="text-xs text-slate-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded bg-slate-800 border border-slate-700"
+                        >
+                            <RotateCcw size={12} /> Defaults
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        {[
+                            { key: 'baseline', label: 'Base Rating', step: 0.1 },
+                            { key: 'goalWeight', label: 'Goal (+)', step: 0.1 },
+                            { key: 'assistWeight', label: 'Assist (+)', step: 0.1 },
+                            { key: 'winBonus', label: 'Win Bonus (+)', step: 0.1 },
+                            { key: 'drawBonus', label: 'Draw Bonus (+)', step: 0.1 },
+                            { key: 'lossPenalty', label: 'Loss Penalty (-)', step: 0.1 },
+                            { key: 'cleanSheetBonus', label: 'Clean Sheet (+)', step: 0.1 },
+                            { key: 'motmBonus', label: 'MOTM Bonus (+)', step: 0.1 },
+                            { key: 'hatTrickBonus', label: 'Hat-Trick (+)', step: 0.1 },
+                            { key: 'ownGoalPenalty', label: 'Own Goal (-)', step: 0.1 }
+                        ].map(item => (
+                            <div key={item.key} className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                                    {item.label}
+                                </label>
+                                <input
+                                    type="number"
+                                    step={item.step}
+                                    value={weightsForm[item.key]}
+                                    onChange={(e) => setWeightsForm(prev => ({ ...prev, [item.key]: parseFloat(e.target.value) || 0 }))}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-mono text-xs"
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="submit"
+                            disabled={savingWeights}
+                            className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5"
+                        >
+                            <Check size={14} /> {savingWeights ? 'Saving…' : 'Save Rating Weights'}
+                        </button>
+                    </div>
+                </form>
+            )}
 
             <h3 className="text-sm font-bold text-slate-400 uppercase mb-3">Add New Player</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

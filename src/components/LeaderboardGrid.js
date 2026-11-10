@@ -9,9 +9,11 @@ const getIcon = (id, size = 16) => {
         case 'assists': return <Zap size={size} className="text-yellow-500" />;
         case 'goalContrib': return <Flame size={size} className="text-orange-500" />;
         case 'goalsPerGame': return <Activity size={size} className="text-cyan-500" />;
+        case 'assistsPerGame': return <Zap size={size} className="text-emerald-400" />;
         case 'wins': return <Trophy size={size} className="text-yellow-400" fill="currentColor" fillOpacity={0.2} />;
         case 'winRate': return <Percent size={size} className="text-green-500" />;
         case 'cleanSheets': return <Sparkles size={size} className="text-teal-400" />;
+        case 'avgMatchRating': return <Award size={size} className="text-purple-400" />;
         case 'motms': return <Award size={size} className="text-amber-400" />;
         case 'goalsFor': return <Shield size={size} className="text-blue-500" />;
         case 'goalsAgainst': return <Shield size={size} className="text-red-500" />;
@@ -22,6 +24,7 @@ const getIcon = (id, size = 16) => {
 const LeaderboardGrid = ({ 
     players, 
     matches, 
+    ratingWeights = {},
     filterYear, 
     onSelectPlayer, 
     onNavigateToFullList 
@@ -37,23 +40,25 @@ const LeaderboardGrid = ({
     // 2. Pre-process stats for all players
     const playersData = useMemo(() => {
         return players.map(p => {
-            const stats = getPlayerStats(p, matches, filterYear);
+            const stats = getPlayerStats(p, matches, filterYear, ratingWeights);
             return {
                 ...p,
                 ...stats
             };
         });
-    }, [players, matches, filterYear]);
+    }, [players, matches, filterYear, ratingWeights]);
 
-    // 3. Define the categories (including MOTM)
+    // 3. Define the categories (including Golden Boot, Playmaker, Most Wins, Clean Sheets, Match Rating, Assists/App)
     const categories = [
-        { id: 'goals', label: 'Goals', sortField: 'goals', type: 'count' },
-        { id: 'assists', label: 'Assists', sortField: 'assists', type: 'count' },
-        { id: 'goalContrib', label: 'Goal Contributions', sortField: 'goalContrib', type: 'count' },
-        { id: 'goalsPerGame', label: 'Goals Per Game', sortField: 'goalsPerGame', type: 'decimal' },
-        { id: 'wins', label: 'Wins', sortField: 'wins', type: 'count' },
-        { id: 'winRate', label: 'Win Percentage', sortField: 'winRate', type: 'percentage' },
+        { id: 'goals', label: 'Golden Boot (Goals)', sortField: 'goals', type: 'count' },
+        { id: 'assists', label: 'Playmaker (Assists)', sortField: 'assists', type: 'count' },
+        { id: 'wins', label: 'Most Wins', sortField: 'wins', type: 'count' },
         { id: 'cleanSheets', label: 'Clean Sheets', sortField: 'cleanSheets', type: 'count' },
+        { id: 'goalContrib', label: 'Goal Contributions', sortField: 'goalContrib', type: 'count' },
+        { id: 'avgMatchRating', label: 'Match Rating (0-10)', sortField: 'avgMatchRating', type: 'rating' },
+        { id: 'goalsPerGame', label: 'Goals Per Appearance', sortField: 'goalsPerGame', type: 'decimal' },
+        { id: 'assistsPerGame', label: 'Assists Per Appearance', sortField: 'assistsPerGame', type: 'decimal' },
+        { id: 'winRate', label: 'Win Percentage', sortField: 'winRate', type: 'percentage' },
         { id: 'motms', label: 'Man of the Match', sortField: 'motms', type: 'count' },
         { id: 'goalsFor', label: 'Goals For', sortField: 'goalsFor', type: 'count' },
         { id: 'goalsAgainst', label: 'Goals Against', sortField: 'goalsAgainst', type: 'count_asc', ascending: true }
@@ -73,10 +78,12 @@ const LeaderboardGrid = ({
                 let dataset = playersData.filter(p => p.gamesPlayed > 0);
 
                 // Rate-based or Defense-based metrics get a minimum match filter to prevent outliers
-                if (cat.id === 'goalsPerGame' || cat.id === 'winRate' || cat.id === 'goalsAgainst') {
+                if (cat.id === 'goalsPerGame' || cat.id === 'assistsPerGame' || cat.id === 'winRate' || cat.id === 'goalsAgainst') {
                     const totalMatches = filteredMatches.length;
                     const minMatches = filterYear === '2026' ? (totalMatches < 4 ? 1 : 3) : 5;
                     dataset = dataset.filter(p => p.gamesPlayed >= minMatches);
+                } else if (cat.id === 'avgMatchRating') {
+                    dataset = dataset.filter(p => (p.trackedMatchesPlayed || 0) > 0 && (p.avgMatchRating || 0) > 0);
                 }
 
                 const topPlayers = [...dataset].sort((a, b) => {
@@ -123,6 +130,7 @@ const LeaderboardGrid = ({
                                 
                                 let displayVal = statValue;
                                 if (cat.type === 'decimal') displayVal = statValue.toFixed(2);
+                                else if (cat.type === 'rating') displayVal = `${statValue.toFixed(1)}/10`;
                                 else if (cat.type === 'percentage') displayVal = `${statValue.toFixed(0)}%`;
                                 else if (cat.id === 'wins' && statValue % 1 !== 0) displayVal = statValue.toFixed(1);
 

@@ -4,6 +4,7 @@ import CheckInSystem from './CheckInSystem';
 import LeaderboardRow from './LeaderboardRow';
 import LastMatchCard from './LastMatchCard';
 import { calculateOverall, getPlayerStats } from '../utils/helpers';
+import { getPremierLeagueLeaderboards } from '../utils/statsEngine';
 
 // Thursday/Friday are match-planning days: check-in goes first. Otherwise lead with the result.
 const MATCH_PLANNING_DAYS = [4, 5];
@@ -15,9 +16,13 @@ export default function DashboardView({
     playerStreaks,
     checkins,
     matches, // NEW: Matches for local calculation
+    ratingWeights = {},
     authStatus,
     setSelectedPlayerForEdit,
-    onViewAllMatches
+    onViewAllMatches,
+    onRegenerateReport = null,
+    generatingMatchId = null,
+    reportErrors = {}
 }) {
     const [filterYear, setFilterYear] = useState('2026');
     const isPlanningDay = MATCH_PLANNING_DAYS.includes(new Date().getDay());
@@ -26,15 +31,20 @@ export default function DashboardView({
         <LastMatchCard
             matches={matches}
             players={players}
+            ratingWeights={ratingWeights}
             onSelectPlayer={(p) => setSelectedPlayerForEdit(p, '2026')}
             onViewAllMatches={onViewAllMatches}
+            canRegenerate={authStatus?.role === 'admin'}
+            onRegenerateReport={onRegenerateReport}
+            generatingMatchId={generatingMatchId}
+            reportErrors={reportErrors}
         />
     );
 
     // Process Players with unified getPlayerStats
     const dashboardData = useMemo(() => {
         const data = players.map(p => {
-            const dynamicStats = getPlayerStats(p, matches, filterYear);
+            const dynamicStats = getPlayerStats(p, matches, filterYear, ratingWeights);
 
             return {
                 ...p,
@@ -49,33 +59,36 @@ export default function DashboardView({
 
         // Sort by Overall
         return activePlayers.sort((a, b) => b.overall - a.overall);
-    }, [players, matches, filterYear, playerStreaks]);
+    }, [players, matches, filterYear, playerStreaks, ratingWeights]);
 
+    // Premier League-style Leaderboards: Golden Boot, Playmaker, Most Wins, Clean Sheets
+    const plLeaderboards = useMemo(
+        () => getPremierLeagueLeaderboards(players, matches, filterYear, ratingWeights, getPlayerStats),
+        [players, matches, filterYear, ratingWeights]
+    );
 
+    const topScorers = useMemo(() => plLeaderboards.goldenBoot.slice(0, 3), [plLeaderboards]);
+    const topAssists = useMemo(() => plLeaderboards.playmaker.slice(0, 3), [plLeaderboards]);
+    const topWins = useMemo(() => plLeaderboards.mostWins.slice(0, 3), [plLeaderboards]);
+    const topCleanSheets = useMemo(() => plLeaderboards.cleanSheets.slice(0, 3), [plLeaderboards]);
 
-
-    // 4. Compact Mini Leaderboards for Scorers, Assists, Clean Sheets
-    const topScorers = useMemo(() => {
-        return [...dashboardData].sort((a, b) => b.goals - a.goals).slice(0, 3);
-    }, [dashboardData]);
-
-    const topAssists = useMemo(() => {
-        return [...dashboardData].sort((a, b) => b.assists - a.assists).slice(0, 3);
-    }, [dashboardData]);
-
-    const topCleanSheets = useMemo(() => {
-        return [...dashboardData].sort((a, b) => b.cleanSheets - a.cleanSheets).slice(0, 3);
-    }, [dashboardData]);
-
-    const RenderMiniLeaderboard = ({ title, icon, playersList, statField, statName, onSelect }) => {
+    const RenderMiniLeaderboard = ({ title, subtitle, icon, playersList, statField, statName, subStatFormatter, onSelect }) => {
         return (
-            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-805 rounded-2xl p-3 sm:p-4 shadow-lg hover:border-slate-700/60 transition-all flex flex-col">
-                <h3 className="text-white font-black text-xs uppercase tracking-wider mb-3 sm:mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                    {icon} {title}
-                </h3>
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-lg hover:border-slate-700/60 transition-all flex flex-col">
+                <div className="border-b border-slate-800 pb-2 mb-3 sm:mb-4">
+                    <h3 className="text-white font-black text-xs uppercase tracking-wider flex items-center gap-2">
+                        <span>{icon}</span> <span className="truncate">{title}</span>
+                    </h3>
+                    {subtitle && (
+                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest block mt-0.5">
+                            {subtitle}
+                        </span>
+                    )}
+                </div>
                 <div className="space-y-2.5 sm:space-y-3">
                     {playersList.map((player, idx) => {
-                        const value = player[statField] || 0;
+                        const rawVal = player[statField] || 0;
+                        const value = statField === 'wins' && rawVal % 1 !== 0 ? rawVal.toFixed(1) : rawVal;
                         return (
                             <div 
                                 key={player.id} 
@@ -88,16 +101,23 @@ export default function DashboardView({
                                     }`}>
                                         {idx + 1}.
                                     </span>
-                                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-slate-750 bg-slate-850 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-slate-700 bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
                                         <img 
                                             src={player.photoUrl || '/logo.png'} 
                                             alt={player.name} 
                                             className="w-full h-full object-cover"
                                         />
                                     </div>
-                                    <span className="text-xs sm:text-sm font-bold text-slate-200 group-hover/row:text-blue-405 transition-colors truncate">
-                                        {player.name}
-                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <span className="text-xs sm:text-sm font-bold text-slate-200 group-hover/row:text-blue-400 transition-colors truncate block">
+                                            {player.name}
+                                        </span>
+                                        {subStatFormatter && (
+                                            <span className="text-[10px] text-slate-500 font-semibold block truncate">
+                                                {subStatFormatter(player)}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <span className="text-cyan-400 font-black text-sm sm:text-base font-mono flex-shrink-0 ml-2">
                                     {value} <span className="text-[9px] text-slate-500 font-bold uppercase hidden xs:inline">{statName}</span>
@@ -190,29 +210,45 @@ export default function DashboardView({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
                     <RenderMiniLeaderboard 
-                        title="Top Scorers" 
-                        icon="⚽" 
+                        title="Golden Boot" 
+                        subtitle="Most Goals"
+                        icon="👟⚽" 
                         playersList={topScorers} 
                         statField="goals" 
                         statName="goals" 
+                        subStatFormatter={(p) => `${(p.goalsPerGame || 0).toFixed(2)} G/App · ${p.gamesPlayed} GP`}
                         onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                     <RenderMiniLeaderboard 
-                        title="Top Playmakers" 
-                        icon="👟" 
+                        title="Playmaker" 
+                        subtitle="Most Assists"
+                        icon="🎯" 
                         playersList={topAssists} 
                         statField="assists" 
                         statName="assists" 
+                        subStatFormatter={(p) => `${(p.assistsPerGame || 0).toFixed(2)} A/App · ${p.goalContrib} G+A`}
+                        onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
+                    />
+                    <RenderMiniLeaderboard 
+                        title="Most Wins" 
+                        subtitle="Victory Leaders"
+                        icon="🏆" 
+                        playersList={topWins} 
+                        statField="wins" 
+                        statName="wins" 
+                        subStatFormatter={(p) => `${(p.winRate || 0).toFixed(0)}% Win · ${p.gamesPlayed} GP`}
                         onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                     <RenderMiniLeaderboard 
                         title="Clean Sheets" 
+                        subtitle="Golden Glove"
                         icon="🧤" 
                         playersList={topCleanSheets} 
                         statField="cleanSheets" 
                         statName="cs" 
+                        subStatFormatter={(p) => `${p.gamesPlayed} GP · ${p.goalsAgainst || 0} GA`}
                         onSelect={(p) => setSelectedPlayerForEdit(p, filterYear)} 
                     />
                 </div>

@@ -19,6 +19,12 @@ import {
 
 import { db, PROJECT_ID, COLLECTIONS } from './services/firebase';
 import { compressImage, getPlayerStats, getPlayerHistoricalBaseline, calculateStatsFromMatches } from './utils/helpers';
+import { computeMatchFingerprint } from './utils/statsEngine';
+import {
+  buildVerifiedMatchPayload,
+  generateMatchReportFromServer,
+  isMatchReportCachedAndValid
+} from './services/aiReportService';
 import SEED_DATA from './utils/seedData';
 
 // Hooks
@@ -42,7 +48,7 @@ import RecordsView from './components/RecordsView';
 // --- Main Application ---
 export default function FridayNightFUT() {
   const { user, authStatus, login, logout, loading: authLoading } = useAuth();
-  const { players, matches, checkins, upcomingTeams, loading: dataLoading, sortedPlayers, playerStreaks } = useAppModel(user, authStatus.loggedIn);
+  const { players, matches, checkins, upcomingTeams, ratingWeights, loading: dataLoading, sortedPlayers, playerStreaks } = useAppModel(user, authStatus.loggedIn);
 
   const [view, setView] = useState('dashboard');
   const [showImporter, setShowImporter] = useState(false);
@@ -53,6 +59,8 @@ export default function FridayNightFUT() {
   const [editingMatch, setEditingMatch] = useState(null); // State for editing an existing match
   const [showGamePicker, setShowGamePicker] = useState(false); // Big Night: choose Game 1 or Game 2
   const [statsNavRequest, setStatsNavRequest] = useState(null); // Deep-link into a Stats Hub tab
+  const [generatingMatchId, setGeneratingMatchId] = useState(null);
+  const [reportErrors, setReportErrors] = useState({});
 
   // NEW: State for Editing Ratings
   const [showRatingsModal, setShowRatingsModal] = useState(false);
@@ -93,8 +101,57 @@ export default function FridayNightFUT() {
     return SEED_DATA.map(s => s.name).sort();
   }, []);
 
+  // Generate and cache AI Match Report in Firestore (once on match finalization, or regenerate after corrections)
+  const triggerMatchReportGeneration = async (matchObj, forceRegenerate = false) => {
+    if (!matchObj || !matchObj.id) return;
+    if (!forceRegenerate && isMatchReportCachedAndValid(matchObj)) {
+      return;
+    }
+
+    setGeneratingMatchId(matchObj.id);
+    setReportErrors(prev => ({ ...prev, [matchObj.id]: null }));
+
+    try {
+      const updatedMatchesList = [
+        matchObj,
+        ...matches.filter(m => m.id !== matchObj.id)
+      ];
+      const verifiedPayload = buildVerifiedMatchPayload(matchObj, players, updatedMatchesList, ratingWeights);
+      if (!verifiedPayload) return;
+
+      const aiReport = await generateMatchReportFromServer(verifiedPayload);
+      const matchRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES, matchObj.id);
+      await updateDoc(matchRef, {
+        aiReports: aiReport
+      });
+    } catch (err) {
+      console.warn('AI Match Report generation fallback:', err.message);
+      setReportErrors(prev => ({
+        ...prev,
+        [matchObj.id]: err.message || 'AI report service unavailable.'
+      }));
+    } finally {
+      setGeneratingMatchId(null);
+    }
+  };
+
   const handleSaveMatch = async (matchData, matchInfo = {}) => {
     if (editingMatch) {
+      const updatedMatchDoc = {
+        ...editingMatch,
+        stats: matchData,
+        motm: matchInfo.motm || null,
+        pkWinner: matchInfo.pkWinner || null,
+        ...(matchInfo.pkAttempts ? { pkAttempts: matchInfo.pkAttempts } : {}),
+        ...(matchInfo.teamLabels ? { teamLabels: matchInfo.teamLabels } : {}),
+        blueOwnGoals: matchInfo.blueOwnGoals || 0,
+        whiteOwnGoals: matchInfo.whiteOwnGoals || 0
+      };
+
+      const oldFingerprint = computeMatchFingerprint(editingMatch);
+      const newFingerprint = computeMatchFingerprint(updatedMatchDoc);
+      const hasCorrections = oldFingerprint !== newFingerprint;
+
       const matchRef = doc(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES, editingMatch.id);
       await updateDoc(matchRef, {
         stats: matchData,
@@ -135,8 +192,14 @@ export default function FridayNightFUT() {
       }
       await batch.commit();
       setEditingMatch(null);
+      setView('dashboard');
+
+      // Regenerate report after corrections or if no valid cached report exists
+      if (hasCorrections || !isMatchReportCachedAndValid(updatedMatchDoc)) {
+        triggerMatchReportGeneration(updatedMatchDoc, true);
+      }
     } else {
-      await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES), {
+      const newMatchPayload = {
         date: serverTimestamp(),
         stats: matchData,
         createdBy: user.uid,
@@ -146,7 +209,9 @@ export default function FridayNightFUT() {
         ...(matchInfo.teamLabels ? { teamLabels: matchInfo.teamLabels } : {}),
         blueOwnGoals: matchInfo.blueOwnGoals || 0,
         whiteOwnGoals: matchInfo.whiteOwnGoals || 0
-      });
+      };
+
+      const addedRef = await addDoc(collection(db, 'artifacts', PROJECT_ID, 'public', 'data', COLLECTIONS.MATCHES), newMatchPayload);
 
       const playerIds = Object.keys(matchData);
       for (const pid of playerIds) {
@@ -168,8 +233,16 @@ export default function FridayNightFUT() {
           });
         }
       }
+
+      setView('dashboard');
+
+      // Generate report once on match finalization and cache result in Firestore
+      triggerMatchReportGeneration({
+        id: addedRef.id,
+        ...newMatchPayload,
+        date: new Date()
+      }, false);
     }
-    setView('dashboard');
   };
 
   const handleDeleteMatch = async (match) => {
@@ -372,9 +445,13 @@ export default function FridayNightFUT() {
           playerStreaks={playerStreaks}
           checkins={checkins}
           matches={matches}
+          ratingWeights={ratingWeights}
           authStatus={authStatus}
           setSelectedPlayerForEdit={handleSelectPlayer}
           onViewAllMatches={handleViewAllMatches}
+          onRegenerateReport={(m) => triggerMatchReportGeneration(m, true)}
+          generatingMatchId={generatingMatchId}
+          reportErrors={reportErrors}
         />
       )}
 
@@ -420,12 +497,16 @@ export default function FridayNightFUT() {
           players={players}
           matches={matches}
           playerStreaks={playerStreaks}
+          ratingWeights={ratingWeights}
           onSelectPlayer={handleSelectPlayer}
           onAddMatch={() => { setMatchSetup(null); setEditingMatch(null); setView('log-match'); }}
           onEditMatch={(m) => { setEditingMatch(m); setView('log-match'); }}
           onDeleteMatch={handleDeleteMatch}
           currentUserRole={authStatus.role}
           navRequest={statsNavRequest}
+          onRegenerateReport={(m) => triggerMatchReportGeneration(m, true)}
+          generatingMatchId={generatingMatchId}
+          reportErrors={reportErrors}
         />
       )}
 
@@ -434,6 +515,7 @@ export default function FridayNightFUT() {
           players={players}
           matches={matches}
           checkins={checkins}
+          ratingWeights={ratingWeights}
           authStatus={authStatus}
           user={user}
           availableLegends={availableLegends}
@@ -486,7 +568,8 @@ export default function FridayNightFUT() {
                     canEdit={authStatus.role === 'admin'}
                     onStatChange={authStatus.role === 'admin' ? handleStatChange : null}
                     streaks={playerStreaks[activePlayerForModal.id]}
-                    seasonStats={getPlayerStats(activePlayerForModal, matches, selectedPlayerSeason)}
+                    ratingWeights={ratingWeights}
+                    seasonStats={getPlayerStats(activePlayerForModal, matches, selectedPlayerSeason, ratingWeights)}
                     onEditRatings={() => {
                       setRatingsForm(activePlayerForModal.ratings || { fitness: 3, control: 3, shooting: 3, defense: 3 });
                       setShowRatingsModal(true);

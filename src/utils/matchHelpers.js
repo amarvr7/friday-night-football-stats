@@ -1,4 +1,5 @@
 import { isMatchIn2026 } from './helpers';
+import { deduplicateMatches, calculateMatchContributionRating, calculateAllMatchRatings } from './statsEngine';
 
 const DEFAULT_LABELS = { blue: 'Blue', white: 'White' };
 
@@ -24,10 +25,11 @@ export const isSameCalendarDay = (a, b) => {
     return dateA.toDateString() === dateB.toDateString();
 };
 
-// Filter matches down to the requested season ('all' or '2026')
+// Filter matches down to the requested season ('all' or '2026'), deduplicating rapid duplicate submissions
 export const filterMatchesBySeason = (matches = [], season = 'all') => {
-    if (season === 'all') return matches;
-    return matches.filter(isMatchIn2026);
+    const clean = deduplicateMatches(matches);
+    if (season === 'all') return clean;
+    return clean.filter(isMatchIn2026);
 };
 
 // Goals/assists/own-goal events credited to a team, built from per-player stats
@@ -55,15 +57,15 @@ const buildTeamEvents = (match, teamColor, players) => {
 };
 
 // Single source of truth for everything a UI needs to render a match
-export const getMatchSummary = (match, players = []) => {
+export const getMatchSummary = (match, players = [], customWeights = {}) => {
     const stats = match?.stats || {};
-    const playerIds = Object.keys(stats);
+    const playerIds = Object.keys(stats).filter(pid => stats[pid] && typeof stats[pid] === 'object');
     if (playerIds.length === 0) return null;
 
     const firstPlayer = stats[playerIds[0]];
     const firstIsBlue = firstPlayer.team === 'blue';
-    const blueScore = firstIsBlue ? (firstPlayer.goalsFor || 0) : (firstPlayer.goalsAgainst || 0);
-    const whiteScore = firstIsBlue ? (firstPlayer.goalsAgainst || 0) : (firstPlayer.goalsFor || 0);
+    const blueScore = firstIsBlue ? (Number(firstPlayer.goalsFor) || 0) : (Number(firstPlayer.goalsAgainst) || 0);
+    const whiteScore = firstIsBlue ? (Number(firstPlayer.goalsAgainst) || 0) : (Number(firstPlayer.goalsFor) || 0);
     const labels = match.teamLabels || DEFAULT_LABELS;
     const isRedGreen = labels.blue === 'Red';
     const isDraw = blueScore === whiteScore;
@@ -74,6 +76,7 @@ export const getMatchSummary = (match, players = []) => {
     else if (match.pkWinner) winner = match.pkWinner;
 
     const motmPlayer = match.motm ? players.find(p => p.id === match.motm) || null : null;
+    const playerRatings = calculateAllMatchRatings(match, players, customWeights);
 
     return {
         id: match.id,
@@ -91,7 +94,9 @@ export const getMatchSummary = (match, players = []) => {
         blueEvents: buildTeamEvents(match, 'blue', players),
         whiteEvents: buildTeamEvents(match, 'white', players),
         bluePlayerIds: playerIds.filter(pid => stats[pid].team === 'blue'),
-        whitePlayerIds: playerIds.filter(pid => stats[pid].team === 'white')
+        whitePlayerIds: playerIds.filter(pid => stats[pid].team === 'white'),
+        playerRatings,
+        aiReports: match.aiReports || null
     };
 };
 
@@ -106,14 +111,15 @@ export const getPlayerResult = (match, playerId) => {
 };
 
 // One row per match a player appeared in, newest first
-export const getPlayerMatchLog = (player, matches = [], players = [], season = 'all') => {
+export const getPlayerMatchLog = (player, matches = [], players = [], season = 'all', customWeights = {}) => {
     if (!player) return [];
     return filterMatchesBySeason(matches, season)
-        .filter(m => m.stats && m.stats[player.id])
+        .filter(m => m.stats && m.stats[player.id] && typeof m.stats[player.id] === 'object')
         .map(m => {
-            const summary = getMatchSummary(m, players);
+            const summary = getMatchSummary(m, players, customWeights);
             const pStats = m.stats[player.id];
             const isBlue = pStats.team === 'blue';
+            const isMotm = m.motm === player.id;
             return {
                 id: m.id,
                 summary,
@@ -127,7 +133,8 @@ export const getPlayerMatchLog = (player, matches = [], players = [], season = '
                 assists: Number(pStats.assists) || 0,
                 ownGoals: Number(pStats.ownGoals) || 0,
                 cleanSheet: !!pStats.cleanSheet,
-                isMotm: m.motm === player.id
+                isMotm,
+                matchRating: calculateMatchContributionRating(pStats, isMotm, customWeights)
             };
         });
 };

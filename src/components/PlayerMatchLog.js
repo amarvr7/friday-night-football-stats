@@ -19,12 +19,12 @@ const teamTone = (label) => {
 };
 
 // Per-match history for one player, newest first
-const PlayerMatchLog = ({ player, matches = [], players = [], season = 'all' }) => {
+const PlayerMatchLog = ({ player, matches = [], players = [], season = 'all', ratingWeights = {} }) => {
     const [visibleCount, setVisibleCount] = useState(INITIAL_ROWS);
 
     const log = useMemo(
-        () => getPlayerMatchLog(player, matches, players, season),
-        [player, matches, players, season]
+        () => getPlayerMatchLog(player, matches, players, season, ratingWeights),
+        [player, matches, players, season, ratingWeights]
     );
 
     const visibleRows = log.slice(0, visibleCount);
@@ -73,6 +73,14 @@ const PlayerMatchLog = ({ player, matches = [], players = [], season = 'all' }) 
                             {row.ownGoals > 0 && <span title="Own goal" className="text-red-400">❌{row.ownGoals > 1 ? `×${row.ownGoals}` : ''}</span>}
                             {row.cleanSheet && <span title="Clean sheet">🧤</span>}
                             {row.isMotm && <Star size={12} className="text-yellow-400" fill="currentColor" aria-label="Man of the match" />}
+                            {typeof row.matchRating === 'number' && (
+                                <span
+                                    title="Match Contribution Rating (0-10)"
+                                    className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 font-mono font-bold text-[10px] text-purple-300"
+                                >
+                                    {row.matchRating.toFixed(1)}
+                                </span>
+                            )}
                         </span>
                     </li>
                 ))}

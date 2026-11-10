@@ -16,13 +16,14 @@ const ModernPlayerProfile = ({
     onStatChange, 
     seasonStats, 
     streaks, 
+    ratingWeights = {},
     forceDynamic = false 
 }) => {
     const [activeSeason, setActiveSeason] = useState(initialSeason);
     const [editingStats, setEditingStats] = useState(false);
 
     const statsToUse = matches.length > 0 || player.historical || player.season2026
-        ? getPlayerStats(player, matches, activeSeason)
+        ? getPlayerStats(player, matches, activeSeason, ratingWeights)
         : (seasonStats || player);
 
     const overall = calculateOverall(player, statsToUse, streaks, activeSeason === '2026' || forceDynamic);
@@ -47,6 +48,14 @@ const ModernPlayerProfile = ({
     const goalsPerGame = statsToUse.gamesPlayed > 0 
         ? (statsToUse.goals / statsToUse.gamesPlayed).toFixed(2) 
         : '0.00';
+
+    const assistsPerGame = statsToUse.gamesPlayed > 0
+        ? ((statsToUse.assists || 0) / statsToUse.gamesPlayed).toFixed(2)
+        : '0.00';
+
+    const avgMcr = statsToUse.avgMatchRating > 0
+        ? statsToUse.avgMatchRating.toFixed(1)
+        : 'N/A';
 
     const winsFormatted = (statsToUse.wins || 0) % 1 === 0
         ? (statsToUse.wins || 0)
@@ -284,11 +293,13 @@ const ModernPlayerProfile = ({
                         <StatBox label="Played" value={statsToUse.gamesPlayed || 0} statKey="gamesPlayed" />
                         <StatBox label="Wins" value={winsFormatted} valueClass="text-green-400" statKey="wins" step={0.5} />
                         <StatBox label="Win Rate" value={`${winRate}%`} />
+                        <StatBox label="Match Rating" value={avgMcr !== 'N/A' ? `${avgMcr}/10` : 'N/A'} valueClass="text-purple-400" />
                         <StatBox label="Goals" value={statsToUse.goals || 0} statKey="goals" />
                         <StatBox label="Assists" value={statsToUse.assists || 0} statKey="assists" />
                         <StatBox label="G+A" value={(statsToUse.goals || 0) + (statsToUse.assists || 0)} valueClass="text-yellow-500" />
-                        <StatBox label="Goals/Game" value={goalsPerGame} />
                         <StatBox label="Clean Sheets" value={statsToUse.cleanSheets || 0} valueClass="text-teal-400" statKey="cleanSheets" />
+                        <StatBox label="Goals/App" value={goalsPerGame} />
+                        <StatBox label="Assists/App" value={assistsPerGame} />
                     </div>
                 </div>
             </div>
@@ -314,7 +325,7 @@ const ModernPlayerProfile = ({
             </div>
 
             {/* Match Log */}
-            <PlayerMatchLog player={player} matches={matches} players={players} season={activeSeason} />
+            <PlayerMatchLog player={player} matches={matches} players={players} season={activeSeason} ratingWeights={ratingWeights} />
 
             {/* Compare */}
             {onCompare && (

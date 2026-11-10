@@ -1,4 +1,10 @@
 import SEED_DATA from './seedData';
+import {
+    deduplicateMatches,
+    calculateMatchContributionRating,
+    getLastFiveForm,
+    safeNum
+} from './statsEngine';
 
 export const mapRating = (val) => {
     if (!val) return 60;
@@ -23,19 +29,34 @@ export const isMatchIn2026 = (m) => {
 
 // Retrieve pre-2026 historical baseline for a player, reconciling any top-level legacy edits
 export const getPlayerHistoricalBaseline = (player, allMatchStats = null) => {
+    if (!player || typeof player !== 'object') {
+        return {
+            gamesPlayed: 0,
+            goals: 0,
+            wins: 0,
+            assists: 0,
+            cleanSheets: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            motms: 0,
+            ownGoals: 0,
+            hatTricks: 0
+        };
+    }
+
     const seed = SEED_DATA.find(s => s.name.toLowerCase() === (player.name || '').toLowerCase());
 
     const base = {
-        gamesPlayed: player.historical?.gamesPlayed ?? (seed?.gamesPlayed || 0),
-        goals: player.historical?.goals ?? (seed?.goals || 0),
-        wins: player.historical?.wins ?? (seed?.wins || 0),
-        assists: player.historical?.assists ?? 0,
-        cleanSheets: player.historical?.cleanSheets ?? 0,
-        goalsFor: player.historical?.goalsFor ?? 0,
-        goalsAgainst: player.historical?.goalsAgainst ?? 0,
-        motms: player.historical?.motms ?? 0,
-        ownGoals: player.historical?.ownGoals ?? 0,
-        hatTricks: player.historical?.hatTricks ?? 0
+        gamesPlayed: Math.max(0, safeNum(player.historical?.gamesPlayed ?? (seed?.gamesPlayed || 0))),
+        goals: Math.max(0, safeNum(player.historical?.goals ?? (seed?.goals || 0))),
+        wins: Math.max(0, safeNum(player.historical?.wins ?? (seed?.wins || 0))),
+        assists: Math.max(0, safeNum(player.historical?.assists ?? 0)),
+        cleanSheets: Math.max(0, safeNum(player.historical?.cleanSheets ?? 0)),
+        goalsFor: Math.max(0, safeNum(player.historical?.goalsFor ?? 0)),
+        goalsAgainst: Math.max(0, safeNum(player.historical?.goalsAgainst ?? 0)),
+        motms: Math.max(0, safeNum(player.historical?.motms ?? 0)),
+        ownGoals: Math.max(0, safeNum(player.historical?.ownGoals ?? 0)),
+        hatTricks: Math.max(0, safeNum(player.historical?.hatTricks ?? 0))
     };
 
     // If top-level player fields were manually incremented via All-Time Quick Stats or Legacy Importer
@@ -43,8 +64,8 @@ export const getPlayerHistoricalBaseline = (player, allMatchStats = null) => {
     if (!player.historical && allMatchStats) {
         const fields = ['gamesPlayed', 'goals', 'wins', 'assists', 'cleanSheets', 'goalsFor', 'goalsAgainst', 'motms', 'ownGoals'];
         fields.forEach(f => {
-            const topLevelVal = typeof player[f] === 'number' ? player[f] : 0;
-            const matchVal = allMatchStats[f] || 0;
+            const topLevelVal = typeof player[f] === 'number' && Number.isFinite(player[f]) ? player[f] : 0;
+            const matchVal = safeNum(allMatchStats[f]);
             const impliedBaseline = Math.max(0, topLevelVal - matchVal);
             if (impliedBaseline > base[f]) {
                 base[f] = impliedBaseline;
@@ -56,35 +77,65 @@ export const getPlayerHistoricalBaseline = (player, allMatchStats = null) => {
 };
 
 // Calculate unified, accurate stats for a player for a given season ('all' or '2026')
-export const getPlayerStats = (player, matches = [], season = 'all') => {
+export const getPlayerStats = (player, matches = [], season = 'all', customWeights = {}) => {
+    if (!player || typeof player !== 'object') {
+        return {
+            goals: 0,
+            wins: 0,
+            gamesPlayed: 0,
+            assists: 0,
+            cleanSheets: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            motms: 0,
+            ownGoals: 0,
+            hatTricks: 0,
+            goalContrib: 0,
+            winRate: 0,
+            goalsPerGame: 0,
+            assistsPerGame: 0,
+            goalContributionsPerGame: 0,
+            avgMatchRating: 0,
+            trackedMatchesPlayed: 0,
+            lastFiveForm: [],
+            lastFiveFormSummary: 'N/A',
+            lastFiveDetailed: []
+        };
+    }
+
     const is2026 = season === '2026';
-    
+    const cleanMatches = deduplicateMatches(matches);
+
     // Filter matches
     const relevantMatches = is2026
-        ? matches.filter(isMatchIn2026)
-        : matches;
+        ? cleanMatches.filter(isMatchIn2026)
+        : cleanMatches;
 
-    const matchStats = calculateStatsFromMatches(player, relevantMatches);
+    const matchStats = calculateStatsFromMatches(player, relevantMatches, customWeights);
     const allMatchStats = is2026 ? null : matchStats;
     const s2026 = player.season2026 || {};
     const baseline = is2026 
         ? { gamesPlayed: 0, goals: 0, wins: 0, assists: 0, cleanSheets: 0, goalsFor: 0, goalsAgainst: 0, motms: 0, ownGoals: 0, hatTricks: 0 } 
         : getPlayerHistoricalBaseline(player, allMatchStats);
 
-    const goals = Math.max(0, baseline.goals + matchStats.goals + (s2026.goals || 0));
-    const wins = Math.max(0, baseline.wins + matchStats.wins + (s2026.wins || 0));
-    const gamesPlayed = Math.max(0, baseline.gamesPlayed + matchStats.gamesPlayed + (s2026.games || 0));
-    const assists = Math.max(0, baseline.assists + matchStats.assists + (s2026.assists || 0));
-    const cleanSheets = Math.max(0, baseline.cleanSheets + matchStats.cleanSheets + (s2026.cleanSheets || 0));
-    const goalsFor = Math.max(0, baseline.goalsFor + matchStats.goalsFor + (s2026.goalsFor || 0));
-    const goalsAgainst = Math.max(0, baseline.goalsAgainst + matchStats.goalsAgainst + (s2026.goalsAgainst || 0));
-    const motms = Math.max(0, baseline.motms + (matchStats.motms || 0) + (s2026.motms || 0));
-    const ownGoals = Math.max(0, (baseline.ownGoals || 0) + (matchStats.ownGoals || 0) + (s2026.ownGoals || 0));
-    const hatTricks = Math.max(0, (baseline.hatTricks || 0) + (matchStats.hatTricks || 0) + (s2026.hatTricks || 0));
+    const goals = Math.max(0, baseline.goals + matchStats.goals + safeNum(s2026.goals));
+    const wins = Math.max(0, baseline.wins + matchStats.wins + safeNum(s2026.wins));
+    const gamesPlayed = Math.max(0, baseline.gamesPlayed + matchStats.gamesPlayed + safeNum(s2026.games));
+    const assists = Math.max(0, baseline.assists + matchStats.assists + safeNum(s2026.assists));
+    const cleanSheets = Math.max(0, baseline.cleanSheets + matchStats.cleanSheets + safeNum(s2026.cleanSheets));
+    const goalsFor = Math.max(0, baseline.goalsFor + matchStats.goalsFor + safeNum(s2026.goalsFor));
+    const goalsAgainst = Math.max(0, baseline.goalsAgainst + matchStats.goalsAgainst + safeNum(s2026.goalsAgainst));
+    const motms = Math.max(0, baseline.motms + (matchStats.motms || 0) + safeNum(s2026.motms));
+    const ownGoals = Math.max(0, (baseline.ownGoals || 0) + (matchStats.ownGoals || 0) + safeNum(s2026.ownGoals));
+    const hatTricks = Math.max(0, (baseline.hatTricks || 0) + (matchStats.hatTricks || 0) + safeNum(s2026.hatTricks));
 
     const goalContrib = goals + assists;
-    const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
+    const winRate = gamesPlayed > 0 ? Math.min(100, Math.max(0, (wins / gamesPlayed) * 100)) : 0;
     const goalsPerGame = gamesPlayed > 0 ? goals / gamesPlayed : 0;
+    const assistsPerGame = gamesPlayed > 0 ? assists / gamesPlayed : 0;
+    const goalContributionsPerGame = gamesPlayed > 0 ? goalContrib / gamesPlayed : 0;
+
+    const formInfo = getLastFiveForm(player, cleanMatches, season, customWeights);
 
     return {
         goals,
@@ -99,12 +150,19 @@ export const getPlayerStats = (player, matches = [], season = 'all') => {
         hatTricks,
         goalContrib,
         winRate,
-        goalsPerGame
+        goalsPerGame,
+        assistsPerGame,
+        goalContributionsPerGame,
+        avgMatchRating: matchStats.avgMatchRating || 0,
+        trackedMatchesPlayed: matchStats.gamesPlayed || 0,
+        lastFiveForm: formInfo.results,
+        lastFiveFormSummary: formInfo.summary,
+        lastFiveDetailed: formInfo.detailed
     };
 };
 
-// Calculate stats dynamically from a list of matches
-export const calculateStatsFromMatches = (player, matches = []) => {
+// Calculate stats dynamically from a list of matches (handles deduplication, incomplete records, and MCR)
+export const calculateStatsFromMatches = (player, matches = [], customWeights = {}) => {
     let stats = {
         goals: 0,
         wins: 0,
@@ -115,26 +173,45 @@ export const calculateStatsFromMatches = (player, matches = []) => {
         goalsAgainst: 0,
         ownGoals: 0,
         hatTricks: 0,
-        motms: 0
+        motms: 0,
+        totalMatchRating: 0,
+        avgMatchRating: 0
     };
 
-    if (!player) return stats;
+    if (!player || !player.id) return stats;
 
-    matches.forEach(m => {
+    const cleanMatches = deduplicateMatches(matches);
+
+    cleanMatches.forEach(m => {
         const pStats = m.stats && m.stats[player.id];
-        if (pStats) {
+        if (pStats && typeof pStats === 'object') {
+            const pGoals = Math.max(0, safeNum(pStats.goals));
+            const pWins = Math.max(0, safeNum(pStats.win));
+            const pAssists = Math.max(0, safeNum(pStats.assists));
+            const pGF = Math.max(0, safeNum(pStats.goalsFor));
+            const pGA = Math.max(0, safeNum(pStats.goalsAgainst));
+            const pOG = Math.max(0, safeNum(pStats.ownGoals));
+            const isMotm = m.motm === player.id;
+
             stats.gamesPlayed++;
-            stats.goals += (Number(pStats.goals) || 0);
-            stats.wins += (Number(pStats.win) || 0);
-            stats.assists += (Number(pStats.assists) || 0);
+            stats.goals += pGoals;
+            stats.wins += pWins;
+            stats.assists += pAssists;
             if (pStats.cleanSheet) stats.cleanSheets++;
-            stats.goalsFor += (Number(pStats.goalsFor) || 0);
-            stats.goalsAgainst += (Number(pStats.goalsAgainst) || 0);
-            stats.ownGoals += (Number(pStats.ownGoals) || 0);
-            if ((Number(pStats.goals) || 0) >= 3) stats.hatTricks++;
+            stats.goalsFor += pGF;
+            stats.goalsAgainst += pGA;
+            stats.ownGoals += pOG;
+            if (pGoals >= 3) stats.hatTricks++;
+            if (isMotm) stats.motms++;
+
+            const matchRating = calculateMatchContributionRating(pStats, isMotm, customWeights);
+            stats.totalMatchRating += matchRating;
         }
-        if (m.motm === player.id) stats.motms++;
     });
+
+    stats.avgMatchRating = stats.gamesPlayed > 0
+        ? Number((stats.totalMatchRating / stats.gamesPlayed).toFixed(1))
+        : 0;
 
     return stats;
 };
@@ -232,8 +309,8 @@ export const compressImage = (file) => {
 };
 
 export const calculateStreaks = (player, matches) => {
-    const sortedMatches = [...matches].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
-    const playerMatches = sortedMatches.filter(m => m.stats && m.stats[player.id]);
+    const sortedMatches = deduplicateMatches(matches);
+    const playerMatches = sortedMatches.filter(m => m.stats && m.stats[player.id] && typeof m.stats[player.id] === 'object');
 
     let winStreak = 0;
     let goalStreak = 0;
@@ -276,25 +353,28 @@ export const calculateStreaks = (player, matches) => {
 
     for (let i = 0; i < playerMatches.length; i++) {
         const m = playerMatches[i];
-        const stats = m.stats[player.id];
+        const stats = m.stats[player.id] || {};
+        const winVal = safeNum(stats.win);
+        const goalsVal = safeNum(stats.goals);
+        const assistsVal = safeNum(stats.assists);
 
         // Win Streak
-        if (stats.win === 1) {
+        if (winVal === 1) {
             if (i === winStreak) winStreak++;
         }
 
         // Loss Streak
-        if (stats.win === 0) {
+        if (winVal === 0) {
             if (i === lossStreak) lossStreak++;
         }
 
         // Goal Streak
-        if ((stats.goals || 0) > 0) {
+        if (goalsVal > 0) {
             if (i === goalStreak) goalStreak++;
         }
 
         // Assist Streak
-        if ((stats.assists || 0) > 0) {
+        if (assistsVal > 0) {
             if (i === assistStreak) assistStreak++;
         }
 
@@ -305,18 +385,18 @@ export const calculateStreaks = (player, matches) => {
 
         // Last 5 Games & Form Score
         if (i < 5) {
-            if (stats.win === 1) {
+            if (winVal === 1) {
                 last5.push('W');
                 formScore += 3;
-            } else if (stats.win === 0.5) {
+            } else if (winVal === 0.5) {
                 last5.push('D');
                 formScore += 1;
             } else {
                 last5.push('L');
             }
 
-            formScore += (stats.goals || 0) * 1;
-            formScore += (stats.assists || 0) * 0.5;
+            formScore += goalsVal * 1;
+            formScore += assistsVal * 0.5;
             if (stats.cleanSheet) formScore += 0.5;
         }
     }

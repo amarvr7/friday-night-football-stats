@@ -7,6 +7,7 @@ const LeaderboardRow = ({ player, rank, overall, stats, showAssists }) => {
     const goals = stats ? stats.goals : (player.goals || 0);
     const assists = stats ? (stats.assists || 0) : (player.assists || 0);
     const cs = stats ? (stats.cleanSheets || 0) : (player.cleanSheets || 0);
+    const form = stats?.lastFiveForm || [];
 
     return (
         <div className="group flex items-center justify-between p-3 sm:p-4 bg-slate-800/80 border-b border-slate-700/70 last:border-0 hover:bg-slate-700/40 active:bg-slate-700/60 transition-colors min-h-[64px]">
@@ -23,7 +24,25 @@ const LeaderboardRow = ({ player, rank, overall, stats, showAssists }) => {
                     <img src={player.photoUrl || '/logo.png'} alt={player.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="font-bold text-white text-sm sm:text-base truncate">{player.name}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="font-bold text-white text-sm sm:text-base truncate">{player.name}</div>
+                        {form.length > 0 && (
+                            <div className="hidden md:flex items-center gap-0.5 flex-shrink-0" title={`Last ${form.length}: ${form.join('-')}`}>
+                                {form.map((r, i) => (
+                                    <span
+                                        key={i}
+                                        className={`w-3.5 h-3.5 rounded-full text-[8px] font-black flex items-center justify-center ${
+                                            r === 'W' ? 'bg-green-600 text-white' :
+                                            r === 'D' ? 'bg-slate-500 text-white' :
+                                            'bg-red-600 text-white'
+                                        }`}
+                                    >
+                                        {r}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <div className="text-[11px] sm:text-xs text-slate-400 flex flex-wrap gap-x-1.5 sm:gap-x-2 gap-y-0.5 items-center">
                         <span>{gp} GP</span>
                         <span className="text-slate-600">•</span>

@@ -3,6 +3,7 @@ import { History, ChevronDown, ChevronUp, ChevronRight, Star } from 'lucide-reac
 import { getMatchSummary, isSameCalendarDay } from '../utils/matchHelpers';
 import MatchEventsList from './MatchEventsList';
 import MatchLineups from './MatchLineups';
+import MatchReportSection from './MatchReportSection';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,7 +15,19 @@ const getHeadline = (date) => {
     return 'Latest Result';
 };
 
-const ResultCard = ({ summary, players, gameLabel, onSelectPlayer }) => {
+const ResultCard = ({
+    summary,
+    rawMatch,
+    players,
+    allMatches,
+    ratingWeights,
+    gameLabel,
+    onSelectPlayer,
+    canRegenerate,
+    onRegenerateReport,
+    generatingMatchId,
+    reportError
+}) => {
     const [expanded, setExpanded] = useState(false);
     const { labels, isRedGreen, blueScore, whiteScore, winner, wentToPks, motmPlayer, blueEvents, whiteEvents } = summary;
 
@@ -81,6 +94,22 @@ const ResultCard = ({ summary, players, gameLabel, onSelectPlayer }) => {
 
             <MatchEventsList blueEvents={blueEvents} whiteEvents={whiteEvents} className="px-3.5 pb-3 pt-2.5 border-t border-slate-800/80" />
 
+            {/* AI Match Insights Section (Analyst Mode & Pundit Mode + 0-10 MCR) */}
+            {rawMatch && (
+                <div className="px-3.5 pb-3.5 pt-1">
+                    <MatchReportSection
+                        match={rawMatch}
+                        players={players}
+                        allMatches={allMatches}
+                        ratingWeights={ratingWeights}
+                        isGenerating={generatingMatchId === rawMatch.id}
+                        error={reportError?.[rawMatch.id] || null}
+                        canRegenerate={canRegenerate}
+                        onRegenerate={onRegenerateReport}
+                    />
+                </div>
+            )}
+
             {expanded && (
                 <MatchLineups summary={summary} players={players} onSelectPlayer={onSelectPlayer} className="px-3.5 pb-3.5 pt-3 border-t border-slate-800" />
             )}
@@ -89,23 +118,36 @@ const ResultCard = ({ summary, players, gameLabel, onSelectPlayer }) => {
 };
 
 // Home page hero: the most recent match night (one card, or two on a Big Night)
-const LastMatchCard = ({ matches = [], players = [], onSelectPlayer, onViewAllMatches }) => {
-    const nightSummaries = useMemo(() => {
+const LastMatchCard = ({
+    matches = [],
+    players = [],
+    ratingWeights = {},
+    onSelectPlayer,
+    onViewAllMatches,
+    canRegenerate = false,
+    onRegenerateReport = null,
+    generatingMatchId = null,
+    reportErrors = {}
+}) => {
+    const nightEntries = useMemo(() => {
         const latest = matches.find(m => m.stats && Object.keys(m.stats).length > 0);
         if (!latest) return [];
         return matches
             .filter(m => m.id === latest.id || isSameCalendarDay(m, latest))
             .slice(0, 2)
-            .map(m => getMatchSummary(m, players))
+            .map(m => {
+                const summary = getMatchSummary(m, players, ratingWeights);
+                return summary ? { summary, rawMatch: m } : null;
+            })
             .filter(Boolean)
             // Game 1 (Blue/White) before Game 2 (Red/Green) on Big Nights
-            .sort((a, b) => Number(a.isRedGreen) - Number(b.isRedGreen));
-    }, [matches, players]);
+            .sort((a, b) => Number(a.summary.isRedGreen) - Number(b.summary.isRedGreen));
+    }, [matches, players, ratingWeights]);
 
-    if (nightSummaries.length === 0) return null;
+    if (nightEntries.length === 0) return null;
 
-    const first = nightSummaries[0];
-    const isBigNight = nightSummaries.length > 1;
+    const first = nightEntries[0].summary;
+    const isBigNight = nightEntries.length > 1;
     const fullDate = first.date
         ? first.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
         : 'Just now';
@@ -127,13 +169,20 @@ const LastMatchCard = ({ matches = [], players = [], onSelectPlayer, onViewAllMa
             </div>
 
             <div className="space-y-3">
-                {nightSummaries.map((summary, idx) => (
+                {nightEntries.map(({ summary, rawMatch }, idx) => (
                     <ResultCard
                         key={summary.id}
                         summary={summary}
+                        rawMatch={rawMatch}
                         players={players}
+                        allMatches={matches}
+                        ratingWeights={ratingWeights}
                         gameLabel={isBigNight ? `Game ${idx + 1}` : null}
                         onSelectPlayer={onSelectPlayer}
+                        canRegenerate={canRegenerate}
+                        onRegenerateReport={onRegenerateReport}
+                        generatingMatchId={generatingMatchId}
+                        reportError={reportErrors}
                     />
                 ))}
             </div>
