@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+  functions = "netlify/functions"
+
+# Map the app's /api/* requests to the matching Netlify Function.
+# e.g. /api/team-preview -> /.netlify/functions/team-preview
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# SPA fallback so client-side routing serves index.html for everything else.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
