@@ -172,7 +172,11 @@ async function handler(req, res, customFetch = fetch) {
             body: JSON.stringify({
                 model: OPENROUTER_MODEL,
                 temperature: 0.3,
-                max_tokens: 700,
+                max_tokens: 1500,
+                // claude-haiku-5.5 is a reasoning model; without this it spends
+                // most of max_tokens on internal reasoning and truncates the
+                // JSON answer. This task needs no reasoning, so disable it.
+                reasoning: { enabled: false },
                 response_format: { type: 'json_object' },
                 messages: [
                     { role: 'system', content: buildSystemPrompt(payload) },

@@ -3,6 +3,13 @@
   publish = "build"
   functions = "netlify/functions"
 
+# Pin a runtime that has global fetch (Node 18+) for both build and functions.
+[build.environment]
+  NODE_VERSION = "18"
+
+[functions]
+  node_bundler = "esbuild"
+
 # Map the app's /api/* requests to the matching Netlify Function.
 # e.g. /api/team-preview -> /.netlify/functions/team-preview
 [[redirects]]
